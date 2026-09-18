@@ -315,7 +315,14 @@ export class CloudSimulator {
 
   public loadScenario(scenarioId: string): boolean {
     try {
-      const fileName = `${scenarioId}.json`;
+      const normMap: Record<string, string> = {
+        'test-a': 'testA', 'testa': 'testA', 'testa.json': 'testA',
+        'test-b': 'testB', 'testb': 'testB', 'testb.json': 'testB',
+        'test-c': 'testC', 'testc': 'testC', 'testc.json': 'testC',
+        'test-d': 'testD', 'testd': 'testD', 'testd.json': 'testD',
+      };
+      const canonicalId = normMap[scenarioId.toLowerCase()] || scenarioId;
+      const fileName = canonicalId.endsWith('.json') ? canonicalId : `${canonicalId}.json`;
       const filePath = path.join(this.scenariosDir, fileName);
 
       if (!fs.existsSync(filePath)) {

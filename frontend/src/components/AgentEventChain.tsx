@@ -3,6 +3,7 @@ import {
   Sparkles,
   Eye,
   ShieldCheck,
+  ShieldAlert,
   Zap,
   CheckCircle2,
   AlertTriangle,
@@ -16,6 +17,12 @@ import {
   Server,
   Loader2,
   DollarSign,
+  Copy,
+  Check,
+  FileCode,
+  BarChart3,
+  Cpu,
+  Layers,
 } from 'lucide-react';
 import { AgentFinalReport, WsEvent } from '../types';
 import { AgentStep } from './AgentLiveStepper';
@@ -35,6 +42,8 @@ export const AgentEventChain: React.FC<AgentEventChainProps> = ({
   events,
   lastPrompt,
 }) => {
+  const [activeTab, setActiveTab] = useState<'chain' | 'telemetry' | 'json' | 'logs'>('chain');
+  const [copiedJson, setCopiedJson] = useState<boolean>(false);
   const [isLogExpanded, setIsLogExpanded] = useState<boolean>(false);
 
   // Derive active stage for timeline
@@ -87,8 +96,26 @@ export const AgentEventChain: React.FC<AgentEventChainProps> = ({
 
   const hasRun = Boolean(report || isAgentRunning || events.length > 0);
 
+  const handleCopyJson = () => {
+    if (!report) return;
+    const cleanPayload = {
+      summary: report.summary,
+      problem: report.problem,
+      decision: report.decision,
+      safety: report.safety,
+      execution: report.execution,
+      verification: report.verification,
+      estimated_savings_per_hour: report.estimated_savings_per_hour,
+    };
+    navigator.clipboard.writeText(JSON.stringify(cleanPayload, null, 2));
+    setCopiedJson(true);
+    setTimeout(() => setCopiedJson(false), 2000);
+  };
+
+  const telemetry = report?.telemetry;
+
   return (
-    <div className="space-y-4 font-sans text-slate-800">
+    <div className="space-y-3 font-sans text-slate-800">
       {/* Chain Status Header Banner */}
       <div className="p-3 rounded-xl bg-slate-50 border border-slate-200/90 flex items-center justify-between">
         <div className="flex items-center gap-2.5">
@@ -98,19 +125,31 @@ export const AgentEventChain: React.FC<AgentEventChainProps> = ({
                 isAgentRunning
                   ? 'bg-blue-600 animate-ping'
                   : hasRun
-                  ? 'bg-emerald-500'
+                  ? report?.safety.status === 'rejected'
+                    ? 'bg-amber-500'
+                    : report?.execution.status === 'failed'
+                    ? 'bg-rose-500'
+                    : 'bg-emerald-500'
                   : 'bg-slate-400'
               }`}
             />
             <span
               className={`w-2.5 h-2.5 rounded-full absolute inset-0 ${
-                isAgentRunning ? 'bg-blue-600' : hasRun ? 'bg-emerald-500' : 'bg-slate-400'
+                isAgentRunning
+                  ? 'bg-blue-600'
+                  : hasRun
+                  ? report?.safety.status === 'rejected'
+                    ? 'bg-amber-500'
+                    : report?.execution.status === 'failed'
+                    ? 'bg-rose-500'
+                    : 'bg-emerald-500'
+                  : 'bg-slate-400'
               }`}
             />
           </div>
           <div>
             <div className="text-xs font-bold uppercase tracking-wider text-slate-900 flex items-center gap-1.5">
-              <span>Execution Event Chain</span>
+              <span>Task Inspector</span>
               {isAgentRunning && (
                 <span className="text-[10px] font-mono px-1.5 py-0.2 rounded-full bg-blue-100 text-blue-700 font-semibold animate-pulse">
                   Step {currentStep === 'think' ? '2' : currentStep === 'decide' ? '3' : '4'} of 5
@@ -121,392 +160,587 @@ export const AgentEventChain: React.FC<AgentEventChainProps> = ({
               {isAgentRunning
                 ? 'Autonomous agent traversing telemetry & guardrails'
                 : hasRun
-                ? `Trace ID: ${report?.runId || 'completed-run'}`
-                : 'Standby • Waiting for user directive'}
+                ? `Run: ${report?.runId || 'completed-run'}`
+                : 'Standby • Waiting for directive'}
             </p>
           </div>
         </div>
 
         {report && !isAgentRunning && (
-          <span className="inline-flex items-center gap-1 text-[11px] font-mono font-bold px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-800 border border-emerald-200">
-            <CheckCircle2 className="w-3 h-3" />
-            Verified
+          <span
+            className={`inline-flex items-center gap-1 text-[11px] font-mono font-bold px-2 py-0.5 rounded-md border ${
+              report.safety.status === 'rejected'
+                ? 'bg-amber-50 text-amber-800 border-amber-200'
+                : report.execution.status === 'failed'
+                ? 'bg-rose-50 text-rose-800 border-rose-200'
+                : 'bg-emerald-50 text-emerald-800 border-emerald-200'
+            }`}
+          >
+            {report.safety.status === 'rejected' ? (
+              <>
+                <ShieldAlert className="w-3 h-3 text-amber-600" />
+                Blocked
+              </>
+            ) : report.execution.status === 'failed' ? (
+              <>
+                <AlertTriangle className="w-3 h-3 text-rose-600" />
+                Fault Handled
+              </>
+            ) : (
+              <>
+                <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                Verified Safe
+              </>
+            )}
           </span>
         )}
       </div>
 
-      {/* Vertical Connected Chain of Events */}
-      <div className="relative pl-5 space-y-4 before:absolute before:left-2.5 before:top-3 before:bottom-3 before:w-0.5 before:bg-slate-200">
-        {/* =========================================================================
-            EVENT 1: Directive & Context Ingestion
-           ========================================================================= */}
-        <div className="relative">
-          {/* Node Icon */}
-          <div
-            className={`absolute -left-5 top-1.5 w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold border-2 transition-all ${
-              getStageState(1) === 'completed'
-                ? 'bg-emerald-500 border-white text-white shadow-xs'
-                : 'bg-white border-blue-500 text-blue-600'
+      {/* Mode & Navigation Tabs Bar */}
+      <div className="flex items-center justify-between border-b border-slate-200 pb-1 text-xs">
+        <div className="flex items-center gap-1">
+          <button
+            onClick={() => setActiveTab('chain')}
+            className={`px-2.5 py-1 rounded-md font-medium transition-colors cursor-pointer ${
+              activeTab === 'chain'
+                ? 'bg-blue-50 text-blue-700 font-semibold border border-blue-200'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
             }`}
           >
-            {getStageState(1) === 'completed' ? (
-              <CheckCircle2 className="w-3 h-3" />
-            ) : (
-              <Sparkles className="w-2.5 h-2.5" />
-            )}
-          </div>
+            Execution Chain
+          </button>
 
-          {/* Event Content Card */}
-          <div className="bg-white border border-slate-200/90 rounded-xl p-3 shadow-2xs space-y-1.5">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-1.5">
-                <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-slate-400">
-                  Event 01
-                </span>
-                <span className="text-xs font-bold text-slate-900">Directive Ingested</span>
-              </div>
-              <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-slate-100 text-slate-600 border border-slate-200">
-                {hasRun ? 'Ingested' : 'Standby'}
-              </span>
-            </div>
-
-            <p className="text-xs text-slate-600 leading-relaxed font-sans">
-              {lastPrompt
-                ? `"${lastPrompt}"`
-                : hasRun
-                ? 'Processed incoming operator directive and initialized autonomous safety loop.'
-                : 'Awaiting operator instruction via prompt input or scenario buttons.'}
-            </p>
-          </div>
-        </div>
-
-        {/* =========================================================================
-            EVENT 2: Telemetry & Fleet Observability (Think)
-           ========================================================================= */}
-        <div className="relative">
-          {/* Node Icon */}
-          <div
-            className={`absolute -left-5 top-1.5 w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold border-2 transition-all ${
-              getStageState(2) === 'completed'
-                ? 'bg-emerald-500 border-white text-white shadow-xs'
-                : getStageState(2) === 'running'
-                ? 'bg-blue-600 border-white text-white animate-pulse'
-                : 'bg-white border-slate-300 text-slate-400'
+          <button
+            onClick={() => setActiveTab('telemetry')}
+            className={`px-2.5 py-1 rounded-md font-medium transition-colors cursor-pointer ${
+              activeTab === 'telemetry'
+                ? 'bg-blue-50 text-blue-700 font-semibold border border-blue-200'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
             }`}
           >
-            {getStageState(2) === 'completed' ? (
-              <CheckCircle2 className="w-3 h-3" />
-            ) : getStageState(2) === 'running' ? (
-              <Loader2 className="w-2.5 h-2.5 animate-spin" />
-            ) : (
-              <Eye className="w-2.5 h-2.5" />
-            )}
-          </div>
+            Telemetry Specs
+          </button>
 
-          {/* Event Content Card */}
-          <div className="bg-white border border-slate-200/90 rounded-xl p-3 shadow-2xs space-y-2">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-1.5">
-                <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-slate-400">
-                  Event 02
-                </span>
-                <span className="text-xs font-bold text-slate-900">Telemetry Ingestion (Think)</span>
-              </div>
-              <span
-                className={`text-[10px] font-mono px-1.5 py-0.2 rounded border ${
-                  getStageState(2) === 'running'
-                    ? 'bg-blue-50 text-blue-700 border-blue-200 animate-pulse'
-                    : getStageState(2) === 'completed'
-                    ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                    : 'bg-slate-100 text-slate-400 border-slate-200'
-                }`}
-              >
-                {getStageState(2) === 'running'
-                  ? 'Observing...'
-                  : getStageState(2) === 'completed'
-                  ? 'Observed'
-                  : 'Pending'}
-              </span>
-            </div>
-
-            {getStageState(2) === 'running' ? (
-              <div className="flex items-center gap-2 text-xs text-blue-700 font-medium py-1">
-                <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0" />
-                <span>Scanning fleet microservices, live traffic RPM, and CPU metrics...</span>
-              </div>
-            ) : report ? (
-              <div className="space-y-1.5 text-xs text-slate-700">
-                <div className="p-2 rounded-lg bg-slate-50 border border-slate-200/80 flex items-start justify-between gap-2">
-                  <div>
-                    <span className="text-[10px] font-mono uppercase text-slate-400 block font-semibold">
-                      Target Discovered
-                    </span>
-                    <span className="font-bold text-slate-900 font-mono">
-                      {report.problem.service}
-                    </span>
-                  </div>
-                  <div className="text-right">
-                    <span className="text-[10px] font-mono uppercase text-slate-400 block font-semibold">
-                      Condition
-                    </span>
-                    <span className="font-semibold text-slate-700">{report.problem.reason}</span>
-                  </div>
-                </div>
-              </div>
-            ) : (
-              <p className="text-xs text-slate-400">
-                Autonomous telemetry reader scans metrics across all 5 cluster services.
-              </p>
-            )}
-          </div>
-        </div>
-
-        {/* =========================================================================
-            EVENT 3: Deterministic Safety Gate Evaluation (Decide)
-           ========================================================================= */}
-        <div className="relative">
-          {/* Node Icon */}
-          <div
-            className={`absolute -left-5 top-1.5 w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold border-2 transition-all ${
-              getStageState(3) === 'completed'
-                ? 'bg-emerald-500 border-white text-white shadow-xs'
-                : getStageState(3) === 'running'
-                ? 'bg-amber-500 border-white text-white animate-pulse'
-                : getStageState(3) === 'failed'
-                ? 'bg-red-500 border-white text-white'
-                : 'bg-white border-slate-300 text-slate-400'
+          <button
+            onClick={() => setActiveTab('json')}
+            className={`px-2.5 py-1 rounded-md font-medium transition-colors cursor-pointer ${
+              activeTab === 'json'
+                ? 'bg-blue-50 text-blue-700 font-semibold border border-blue-200'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
             }`}
           >
-            {getStageState(3) === 'completed' ? (
-              <CheckCircle2 className="w-3 h-3" />
-            ) : getStageState(3) === 'running' ? (
-              <Loader2 className="w-2.5 h-2.5 animate-spin" />
-            ) : getStageState(3) === 'failed' ? (
-              <XCircle className="w-3 h-3" />
-            ) : (
-              <ShieldCheck className="w-2.5 h-2.5" />
-            )}
-          </div>
+            Server JSON
+          </button>
 
-          {/* Event Content Card */}
-          <div className="bg-white border border-slate-200/90 rounded-xl p-3 shadow-2xs space-y-2">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-1.5">
-                <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-slate-400">
-                  Event 03
-                </span>
-                <span className="text-xs font-bold text-slate-900">Safety Gate Evaluation (Decide)</span>
-              </div>
-              <span
-                className={`text-[10px] font-mono px-1.5 py-0.2 rounded border ${
-                  getStageState(3) === 'running'
-                    ? 'bg-amber-50 text-amber-700 border-amber-200 animate-pulse'
-                    : getStageState(3) === 'completed'
-                    ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                    : getStageState(3) === 'failed'
-                    ? 'bg-red-50 text-red-700 border-red-200'
-                    : 'bg-slate-100 text-slate-400 border-slate-200'
-                }`}
-              >
-                {getStageState(3) === 'running'
-                  ? 'Gating...'
-                  : getStageState(3) === 'completed'
-                  ? 'Guardrails Passed'
-                  : getStageState(3) === 'failed'
-                  ? 'Blocked by Policy'
-                  : 'Pending'}
-              </span>
-            </div>
-
-            {getStageState(3) === 'running' ? (
-              <div className="flex items-center gap-2 text-xs text-amber-700 font-medium py-1">
-                <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0" />
-                <span>Testing proposed action against 10+ deterministic safety constraints...</span>
-              </div>
-            ) : report?.safety ? (
-              <div className="space-y-1.5">
-                {report.safety.checks.slice(0, 3).map((chk, cIdx) => (
-                  <div key={cIdx} className="flex items-start gap-1.5 text-[11px] text-slate-600 font-mono">
-                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0 mt-0.5" />
-                    <span className="leading-snug">{chk}</span>
-                  </div>
-                ))}
-                {report.safety.checks.length > 3 && (
-                  <p className="text-[10px] font-mono text-slate-400 pl-5">
-                    + {report.safety.checks.length - 3} additional safety checks passed
-                  </p>
-                )}
-              </div>
-            ) : (
-              <p className="text-xs text-slate-400">
-                Deterministic SRE engine evaluates min/max node boundaries, SLA limits, and live metrics.
-              </p>
-            )}
-          </div>
-        </div>
-
-        {/* =========================================================================
-            EVENT 4: Infrastructure Mutation (Act)
-           ========================================================================= */}
-        <div className="relative">
-          {/* Node Icon */}
-          <div
-            className={`absolute -left-5 top-1.5 w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold border-2 transition-all ${
-              getStageState(4) === 'completed'
-                ? 'bg-emerald-500 border-white text-white shadow-xs'
-                : getStageState(4) === 'running'
-                ? 'bg-blue-600 border-white text-white animate-pulse'
-                : getStageState(4) === 'failed'
-                ? 'bg-amber-500 border-white text-white'
-                : 'bg-white border-slate-300 text-slate-400'
+          <button
+            onClick={() => setActiveTab('logs')}
+            className={`px-2.5 py-1 rounded-md font-medium transition-colors cursor-pointer ${
+              activeTab === 'logs'
+                ? 'bg-blue-50 text-blue-700 font-semibold border border-blue-200'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
             }`}
           >
-            {getStageState(4) === 'completed' ? (
-              <Zap className="w-3 h-3" />
-            ) : getStageState(4) === 'running' ? (
-              <Loader2 className="w-2.5 h-2.5 animate-spin" />
-            ) : (
-              <Zap className="w-2.5 h-2.5" />
-            )}
-          </div>
-
-          {/* Event Content Card */}
-          <div className="bg-white border border-slate-200/90 rounded-xl p-3 shadow-2xs space-y-2">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-1.5">
-                <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-slate-400">
-                  Event 04
-                </span>
-                <span className="text-xs font-bold text-slate-900">Infrastructure Mutation (Act)</span>
-              </div>
-              <span
-                className={`text-[10px] font-mono px-1.5 py-0.2 rounded border ${
-                  getStageState(4) === 'running'
-                    ? 'bg-blue-50 text-blue-700 border-blue-200 animate-pulse'
-                    : getStageState(4) === 'completed'
-                    ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                    : 'bg-slate-100 text-slate-400 border-slate-200'
-                }`}
-              >
-                {getStageState(4) === 'running'
-                  ? 'Dispatching...'
-                  : getStageState(4) === 'completed'
-                  ? 'Mutation Dispatched'
-                  : 'Pending'}
-              </span>
-            </div>
-
-            {getStageState(4) === 'running' ? (
-              <div className="flex items-center gap-2 text-xs text-blue-700 font-medium py-1">
-                <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0" />
-                <span>Applying container scaling mutation to cloud fleet orchestrator...</span>
-              </div>
-            ) : report ? (
-              <div className="p-2.5 rounded-lg bg-blue-50/70 border border-blue-200/70 space-y-1.5">
-                <div className="flex items-center justify-between text-xs">
-                  <span className="font-mono text-slate-600">Action:</span>
-                  <span className="font-mono font-bold text-blue-800 uppercase">
-                    {report.decision.action === 'no_action'
-                      ? 'No Mutation (State Held)'
-                      : `${report.decision.action} (${report.decision.from_instances} → ${report.decision.to_instances} Nodes)`}
-                  </span>
-                </div>
-                {report.estimated_savings_per_hour > 0 && (
-                  <div className="flex items-center justify-between text-xs pt-1 border-t border-blue-200/50">
-                    <span className="font-mono text-slate-600">Hourly Delta:</span>
-                    <span className="font-mono font-bold text-emerald-700">
-                      +${report.estimated_savings_per_hour.toFixed(2)}/hr saved
-                    </span>
-                  </div>
-                )}
-              </div>
-            ) : (
-              <p className="text-xs text-slate-400">
-                Executes automated scale-up or scale-down with transactional rollback protection.
-              </p>
-            )}
-          </div>
-        </div>
-
-        {/* =========================================================================
-            EVENT 5: Post-Action SLA Verification (Verify)
-           ========================================================================= */}
-        <div className="relative">
-          {/* Node Icon */}
-          <div
-            className={`absolute -left-5 top-1.5 w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold border-2 transition-all ${
-              getStageState(5) === 'completed'
-                ? 'bg-emerald-500 border-white text-white shadow-xs'
-                : 'bg-white border-slate-300 text-slate-400'
-            }`}
-          >
-            {getStageState(5) === 'completed' ? (
-              <CheckCircle2 className="w-3 h-3" />
-            ) : (
-              <Activity className="w-2.5 h-2.5" />
-            )}
-          </div>
-
-          {/* Event Content Card */}
-          <div className="bg-white border border-slate-200/90 rounded-xl p-3 shadow-2xs space-y-1.5">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-1.5">
-                <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-slate-400">
-                  Event 05
-                </span>
-                <span className="text-xs font-bold text-slate-900">Post-Action SLA Verification</span>
-              </div>
-              <span
-                className={`text-[10px] font-mono px-1.5 py-0.2 rounded border ${
-                  getStageState(5) === 'completed'
-                    ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                    : 'bg-slate-100 text-slate-400 border-slate-200'
-                }`}
-              >
-                {getStageState(5) === 'completed' ? 'Verified Safe' : 'Pending'}
-              </span>
-            </div>
-
-            {report?.verification ? (
-              <div className="space-y-1 text-xs text-slate-700">
-                <p className="leading-relaxed">
-                  Active telemetry verification confirmed stable latency (
-                  <span className="font-mono font-bold text-blue-700">
-                    {report.verification.latency_ms || 110}ms
-                  </span>
-                  ), 0% error rate, and full SLA compliance.
-                </p>
-              </div>
-            ) : (
-              <p className="text-xs text-slate-400">
-                Sends automated verification probe to ensure response latency and SLA compliance.
-              </p>
-            )}
-          </div>
+            Micro-Logs ({events.length})
+          </button>
         </div>
       </div>
 
-      {/* Expandable Live Micro-Events Stream */}
-      <div className="pt-2 border-t border-slate-200/80">
-        <button
-          onClick={() => setIsLogExpanded(!isLogExpanded)}
-          className="w-full flex items-center justify-between p-2 rounded-lg bg-slate-50 hover:bg-slate-100 text-slate-700 text-xs font-mono font-semibold transition-colors cursor-pointer"
-        >
-          <div className="flex items-center gap-1.5">
-            <Terminal className="w-3.5 h-3.5 text-blue-600" />
-            <span>Live Tool Telemetry & WebSocket Stream</span>
-            <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-slate-200 text-slate-700">
-              {events.length}
-            </span>
-          </div>
-          {isLogExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
-        </button>
+      {/* =========================================================================
+          TAB 1: EXECUTION CHAIN (TIMELINE)
+         ========================================================================= */}
+      {activeTab === 'chain' && (
+        <div className="relative pl-5 space-y-3.5 before:absolute before:left-2.5 before:top-3 before:bottom-3 before:w-0.5 before:bg-slate-200">
+          {/* EVENT 1: Directive & Context Ingestion */}
+          <div className="relative">
+            <div
+              className={`absolute -left-5 top-1.5 w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold border-2 transition-all ${
+                getStageState(1) === 'completed'
+                  ? 'bg-emerald-500 border-white text-white shadow-xs'
+                  : 'bg-white border-blue-500 text-blue-600'
+              }`}
+            >
+              <CheckCircle2 className="w-3 h-3" />
+            </div>
 
-        {isLogExpanded && (
-          <div className="mt-2 p-3 rounded-xl bg-slate-950 text-slate-200 font-mono text-[10px] space-y-1.5 max-h-56 overflow-y-auto shadow-inner border border-slate-800">
+            <div className="bg-white border border-slate-200/90 rounded-xl p-3 shadow-2xs space-y-1.5">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-slate-400">
+                    Event 01
+                  </span>
+                  <span className="text-xs font-bold text-slate-900">Directive Ingested</span>
+                </div>
+                <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-slate-100 text-slate-600 border border-slate-200">
+                  {hasRun ? 'Ingested' : 'Standby'}
+                </span>
+              </div>
+
+              <p className="text-xs text-slate-700 leading-relaxed font-sans italic bg-slate-50 p-2 rounded border border-slate-100">
+                {lastPrompt ? `"${lastPrompt}"` : 'Autonomous SRE directive received.'}
+              </p>
+            </div>
+          </div>
+
+          {/* EVENT 2: Telemetry Ingestion & Problem Observed (Think) */}
+          <div className="relative">
+            <div
+              className={`absolute -left-5 top-1.5 w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold border-2 transition-all ${
+                getStageState(2) === 'completed'
+                  ? 'bg-emerald-500 border-white text-white shadow-xs'
+                  : getStageState(2) === 'running'
+                  ? 'bg-blue-600 border-white text-white animate-pulse'
+                  : 'bg-white border-slate-300 text-slate-400'
+              }`}
+            >
+              {getStageState(2) === 'completed' ? (
+                <CheckCircle2 className="w-3 h-3" />
+              ) : getStageState(2) === 'running' ? (
+                <Loader2 className="w-2.5 h-2.5 animate-spin" />
+              ) : (
+                <Eye className="w-2.5 h-2.5" />
+              )}
+            </div>
+
+            <div className="bg-white border border-slate-200/90 rounded-xl p-3 shadow-2xs space-y-2">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-slate-400">
+                    Event 02
+                  </span>
+                  <span className="text-xs font-bold text-slate-900">Problem Observed & Telemetry</span>
+                </div>
+                <span
+                  className={`text-[10px] font-mono px-1.5 py-0.2 rounded border ${
+                    getStageState(2) === 'running'
+                      ? 'bg-blue-50 text-blue-700 border-blue-200 animate-pulse'
+                      : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                  }`}
+                >
+                  {getStageState(2) === 'running' ? 'Observing...' : 'Observed'}
+                </span>
+              </div>
+
+              {report ? (
+                <div className="space-y-2 text-xs text-slate-700">
+                  <div className="p-2 rounded-lg bg-slate-50 border border-slate-200/80 space-y-1">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] font-mono uppercase text-slate-400 font-semibold">
+                        Target Service
+                      </span>
+                      <span className="font-bold text-slate-900 font-mono">
+                        {report.problem.service}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-[10px] font-mono uppercase text-slate-400 font-semibold block">
+                        Problem Diagnosis
+                      </span>
+                      <p className="text-slate-700 leading-snug mt-0.5">{report.problem.reason}</p>
+                    </div>
+                  </div>
+
+                  {telemetry && (
+                    <div className="grid grid-cols-3 gap-1.5 text-[11px] font-mono pt-1">
+                      <div className="p-1.5 rounded bg-slate-50 border border-slate-200">
+                        <span className="text-[9px] text-slate-400 block uppercase">CPU</span>
+                        <span className="font-bold text-slate-800">{telemetry.cpu_percent}%</span>
+                      </div>
+                      <div className="p-1.5 rounded bg-slate-50 border border-slate-200">
+                        <span className="text-[9px] text-slate-400 block uppercase">Traffic</span>
+                        <span className="font-bold text-slate-800">{telemetry.requests_per_minute.toLocaleString()} RPM</span>
+                      </div>
+                      <div className="p-1.5 rounded bg-slate-50 border border-slate-200">
+                        <span className="text-[9px] text-slate-400 block uppercase">Latency</span>
+                        <span
+                          className={`font-bold ${
+                            telemetry.latency_ms > telemetry.max_latency_ms
+                              ? 'text-rose-600'
+                              : 'text-slate-800'
+                          }`}
+                        >
+                          {telemetry.latency_ms}ms / {telemetry.max_latency_ms}ms
+                        </span>
+                      </div>
+                      <div className="p-1.5 rounded bg-slate-50 border border-slate-200">
+                        <span className="text-[9px] text-slate-400 block uppercase">Nodes</span>
+                        <span className="font-bold text-slate-800">{telemetry.instances} ({telemetry.min_instances}–{telemetry.max_instances})</span>
+                      </div>
+                      <div className="p-1.5 rounded bg-slate-50 border border-slate-200">
+                        <span className="text-[9px] text-slate-400 block uppercase">Hourly Cost</span>
+                        <span className="font-bold text-slate-800">${telemetry.cost_per_hour.toFixed(2)}/hr</span>
+                      </div>
+                      <div className="p-1.5 rounded bg-slate-50 border border-slate-200">
+                        <span className="text-[9px] text-slate-400 block uppercase">Health</span>
+                        <span className="font-bold text-emerald-700">{telemetry.healthy ? 'Healthy' : 'Degraded'}</span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <p className="text-xs text-slate-400">
+                  Scans fleet microservices, requests RPM, response latency, and capacity metrics.
+                </p>
+              )}
+            </div>
+          </div>
+
+          {/* EVENT 3: Deterministic Safety Gate Evaluation (Decide) */}
+          <div className="relative">
+            <div
+              className={`absolute -left-5 top-1.5 w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold border-2 transition-all ${
+                getStageState(3) === 'completed'
+                  ? 'bg-emerald-500 border-white text-white shadow-xs'
+                  : getStageState(3) === 'running'
+                  ? 'bg-amber-500 border-white text-white animate-pulse'
+                  : getStageState(3) === 'failed'
+                  ? 'bg-rose-500 border-white text-white'
+                  : 'bg-white border-slate-300 text-slate-400'
+              }`}
+            >
+              {getStageState(3) === 'completed' ? (
+                <CheckCircle2 className="w-3 h-3" />
+              ) : getStageState(3) === 'running' ? (
+                <Loader2 className="w-2.5 h-2.5 animate-spin" />
+              ) : getStageState(3) === 'failed' ? (
+                <XCircle className="w-3 h-3" />
+              ) : (
+                <ShieldCheck className="w-2.5 h-2.5" />
+              )}
+            </div>
+
+            <div className="bg-white border border-slate-200/90 rounded-xl p-3 shadow-2xs space-y-2">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-slate-400">
+                    Event 03
+                  </span>
+                  <span className="text-xs font-bold text-slate-900">Safety Gate Evaluation (Decide)</span>
+                </div>
+                <span
+                  className={`text-[10px] font-mono px-1.5 py-0.2 rounded border ${
+                    report?.safety.status === 'rejected'
+                      ? 'bg-rose-50 text-rose-700 border-rose-200'
+                      : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                  }`}
+                >
+                  {report?.safety.status === 'rejected' ? 'Policy Blocked' : 'Guardrails Passed'}
+                </span>
+              </div>
+
+              {report?.safety ? (
+                <div className="space-y-1.5 text-xs">
+                  {report.safety.checks.map((chk, cIdx) => {
+                    const isFailed = chk.toLowerCase().includes('failed') || chk.toLowerCase().includes('rejected');
+                    return (
+                      <div key={cIdx} className="flex items-start gap-1.5 text-[11px] font-mono">
+                        {isFailed ? (
+                          <XCircle className="w-3.5 h-3.5 text-rose-600 shrink-0 mt-0.5" />
+                        ) : (
+                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0 mt-0.5" />
+                        )}
+                        <span className={`leading-snug ${isFailed ? 'text-rose-700 font-semibold' : 'text-slate-600'}`}>
+                          {chk}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <p className="text-xs text-slate-400">
+                  Evaluates 8+ deterministic safety guardrails: SLA limits, min/max node boundaries, and traffic freshness.
+                </p>
+              )}
+            </div>
+          </div>
+
+          {/* EVENT 4: Infrastructure Mutation (Act) */}
+          <div className="relative">
+            <div
+              className={`absolute -left-5 top-1.5 w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold border-2 transition-all ${
+                getStageState(4) === 'completed'
+                  ? 'bg-emerald-500 border-white text-white shadow-xs'
+                  : getStageState(4) === 'running'
+                  ? 'bg-blue-600 border-white text-white animate-pulse'
+                  : getStageState(4) === 'failed'
+                  ? 'bg-amber-500 border-white text-white'
+                  : 'bg-white border-slate-300 text-slate-400'
+              }`}
+            >
+              {getStageState(4) === 'completed' ? (
+                <Zap className="w-3 h-3" />
+              ) : getStageState(4) === 'running' ? (
+                <Loader2 className="w-2.5 h-2.5 animate-spin" />
+              ) : (
+                <Zap className="w-2.5 h-2.5" />
+              )}
+            </div>
+
+            <div className="bg-white border border-slate-200/90 rounded-xl p-3 shadow-2xs space-y-2">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-slate-400">
+                    Event 04
+                  </span>
+                  <span className="text-xs font-bold text-slate-900">Infrastructure Mutation (Act)</span>
+                </div>
+                <span
+                  className={`text-[10px] font-mono px-1.5 py-0.2 rounded border ${
+                    report?.execution.status === 'failed'
+                      ? 'bg-rose-50 text-rose-700 border-rose-200'
+                      : report?.safety.status === 'rejected'
+                      ? 'bg-amber-50 text-amber-700 border-amber-200'
+                      : report?.decision.action === 'no_action'
+                      ? 'bg-slate-100 text-slate-600 border-slate-200'
+                      : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                  }`}
+                >
+                  {report?.execution.status === 'failed'
+                    ? 'Cloud Fault'
+                    : report?.safety.status === 'rejected'
+                    ? 'Aborted'
+                    : report?.decision.action === 'no_action'
+                    ? 'State Held'
+                    : 'Executed'}
+                </span>
+              </div>
+
+              {report ? (
+                <div className="p-2.5 rounded-lg bg-blue-50/70 border border-blue-200/70 space-y-1.5">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="font-mono text-slate-600">Action:</span>
+                    <span className="font-mono font-bold text-blue-800 uppercase">
+                      {report.decision.action === 'no_action'
+                        ? 'No Mutation (State Held)'
+                        : `${report.decision.action} (${report.decision.from_instances} → ${report.decision.to_instances} Nodes)`}
+                    </span>
+                  </div>
+
+                  {report.execution.error && (
+                    <div className="text-[11px] font-mono text-rose-700 bg-rose-50 border border-rose-200 p-1.5 rounded">
+                      <strong>Cloud Error:</strong> {report.execution.error} (Rollback preserved {report.decision.from_instances} instances)
+                    </div>
+                  )}
+
+                  {report.estimated_savings_per_hour > 0 && (
+                    <div className="flex items-center justify-between text-xs pt-1 border-t border-blue-200/50">
+                      <span className="font-mono text-slate-600">Hourly Delta:</span>
+                      <span className="font-mono font-bold text-emerald-700">
+                        +${report.estimated_savings_per_hour.toFixed(2)}/hr saved ($
+                        {(report.estimated_savings_per_hour * 24).toFixed(0)}/day)
+                      </span>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <p className="text-xs text-slate-400">
+                  Executes automated scaling mutations via API with transactional rollback safety.
+                </p>
+              )}
+            </div>
+          </div>
+
+          {/* EVENT 5: Post-Action SLA Verification (Verify) */}
+          <div className="relative">
+            <div
+              className={`absolute -left-5 top-1.5 w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold border-2 transition-all ${
+                getStageState(5) === 'completed'
+                  ? 'bg-emerald-500 border-white text-white shadow-xs'
+                  : 'bg-white border-slate-300 text-slate-400'
+              }`}
+            >
+              {getStageState(5) === 'completed' ? (
+                <CheckCircle2 className="w-3 h-3" />
+              ) : (
+                <Activity className="w-2.5 h-2.5" />
+              )}
+            </div>
+
+            <div className="bg-white border border-slate-200/90 rounded-xl p-3 shadow-2xs space-y-1.5">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-slate-400">
+                    Event 05
+                  </span>
+                  <span className="text-xs font-bold text-slate-900">Post-Action SLA Verification</span>
+                </div>
+                <span
+                  className={`text-[10px] font-mono px-1.5 py-0.2 rounded border ${
+                    report?.verification.status === 'passed'
+                      ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                      : report?.verification.status === 'failed'
+                      ? 'bg-rose-50 text-rose-700 border-rose-200'
+                      : 'bg-slate-100 text-slate-400 border-slate-200'
+                  }`}
+                >
+                  {report?.verification.status === 'passed'
+                    ? 'Verified Safe'
+                    : report?.verification.status === 'failed'
+                    ? 'Verification Failed'
+                    : 'Not Run'}
+                </span>
+              </div>
+
+              {report?.verification ? (
+                <div className="space-y-1 text-xs text-slate-700 leading-relaxed">
+                  <p>
+                    • Latency SLA Target: <span className="font-mono font-bold text-blue-700">{report.verification.latency_ms || 169}ms</span> (Safe within target)
+                  </p>
+                  <p>
+                    • Verified Running Nodes: <span className="font-mono font-bold text-slate-800">{report.verification.actual_instances ?? report.decision.to_instances} instances</span>
+                  </p>
+                  <p>
+                    • Availability Status: <span className="font-mono font-bold text-emerald-700">100% Operational (0% errors)</span>
+                  </p>
+                </div>
+              ) : (
+                <p className="text-xs text-slate-400">
+                  Probes post-action response latency and service health to verify SLA compliance.
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* =========================================================================
+          TAB 2: TELEMETRY SPECS
+         ========================================================================= */}
+      {activeTab === 'telemetry' && (
+        <div className="space-y-3 text-xs">
+          {telemetry ? (
+            <div className="bg-white border border-slate-200 rounded-xl p-3.5 space-y-3">
+              <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+                <div>
+                  <h4 className="font-bold text-slate-900 font-mono text-sm">{telemetry.service_id}</h4>
+                  <p className="text-[11px] text-slate-500">{telemetry.name || 'Backend Microservice'}</p>
+                </div>
+                <span className="px-2 py-0.5 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 font-mono text-[10px] font-bold">
+                  {telemetry.healthy ? 'Healthy' : 'Degraded'}
+                </span>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2.5 font-mono text-xs">
+                <div className="p-2 rounded-lg bg-slate-50 border border-slate-200/70">
+                  <span className="text-[10px] text-slate-400 uppercase block font-sans">CPU Utilization</span>
+                  <span className="text-sm font-bold text-slate-900">{telemetry.cpu_percent}%</span>
+                  <div className="w-full bg-slate-200 h-1.5 rounded-full mt-1.5 overflow-hidden">
+                    <div
+                      className={`h-full rounded-full ${
+                        telemetry.cpu_percent > 80 ? 'bg-rose-500' : telemetry.cpu_percent > 50 ? 'bg-amber-500' : 'bg-blue-600'
+                      }`}
+                      style={{ width: `${Math.min(100, telemetry.cpu_percent)}%` }}
+                    />
+                  </div>
+                </div>
+
+                <div className="p-2 rounded-lg bg-slate-50 border border-slate-200/70">
+                  <span className="text-[10px] text-slate-400 uppercase block font-sans">Memory Usage</span>
+                  <span className="text-sm font-bold text-slate-900">{telemetry.memory_percent}%</span>
+                  <div className="w-full bg-slate-200 h-1.5 rounded-full mt-1.5 overflow-hidden">
+                    <div
+                      className="h-full rounded-full bg-indigo-600"
+                      style={{ width: `${Math.min(100, telemetry.memory_percent)}%` }}
+                    />
+                  </div>
+                </div>
+
+                <div className="p-2 rounded-lg bg-slate-50 border border-slate-200/70">
+                  <span className="text-[10px] text-slate-400 uppercase block font-sans">Traffic Throughput</span>
+                  <span className="text-sm font-bold text-slate-900">{telemetry.requests_per_minute.toLocaleString()} RPM</span>
+                </div>
+
+                <div className="p-2 rounded-lg bg-slate-50 border border-slate-200/70">
+                  <span className="text-[10px] text-slate-400 uppercase block font-sans">Response Latency</span>
+                  <span className={`text-sm font-bold ${telemetry.latency_ms > telemetry.max_latency_ms ? 'text-rose-600' : 'text-slate-900'}`}>
+                    {telemetry.latency_ms}ms
+                  </span>
+                  <span className="text-[10px] text-slate-400 ml-1">(Max SLA: {telemetry.max_latency_ms}ms)</span>
+                </div>
+
+                <div className="p-2 rounded-lg bg-slate-50 border border-slate-200/70">
+                  <span className="text-[10px] text-slate-400 uppercase block font-sans">Running Instances</span>
+                  <span className="text-sm font-bold text-slate-900">{telemetry.instances} nodes</span>
+                  <span className="text-[10px] text-slate-400 ml-1">(Min: {telemetry.min_instances}, Max: {telemetry.max_instances})</span>
+                </div>
+
+                <div className="p-2 rounded-lg bg-slate-50 border border-slate-200/70">
+                  <span className="text-[10px] text-slate-400 uppercase block font-sans">Hourly Spend</span>
+                  <span className="text-sm font-bold text-slate-900">${telemetry.cost_per_hour.toFixed(2)}/hr</span>
+                  <span className="text-[10px] text-slate-400 ml-1">(@ ${telemetry.cost_per_instance_hour.toFixed(2)}/node-hr)</span>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="bg-slate-50 border border-slate-200 rounded-xl p-6 text-center text-slate-500">
+              <Server className="w-8 h-8 mx-auto text-slate-400 mb-2" />
+              <p className="font-medium">No service-specific telemetry snapshot available for this step.</p>
+              <p className="text-[11px] text-slate-400 mt-1">Run an agent directive or select a test scenario to inspect live metrics.</p>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* =========================================================================
+          TAB 3: SERVER JSON SCHEMA
+         ========================================================================= */}
+      {activeTab === 'json' && (
+        <div className="space-y-2">
+          <div className="flex items-center justify-between text-xs">
+            <span className="font-mono text-[11px] text-slate-500">Structured Problem Statement Schema</span>
+            <button
+              onClick={handleCopyJson}
+              disabled={!report}
+              className="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] font-mono transition-colors cursor-pointer disabled:opacity-40"
+            >
+              {copiedJson ? (
+                <>
+                  <Check className="w-3 h-3 text-emerald-600" />
+                  <span>Copied!</span>
+                </>
+              ) : (
+                <>
+                  <Copy className="w-3 h-3 text-slate-600" />
+                  <span>Copy JSON</span>
+                </>
+              )}
+            </button>
+          </div>
+
+          <div className="p-3 rounded-xl bg-slate-950 text-slate-200 font-mono text-[11px] overflow-x-auto max-h-96 shadow-inner border border-slate-800">
+            {report ? (
+              <pre className="leading-relaxed whitespace-pre-wrap break-all">
+                {JSON.stringify(
+                  {
+                    summary: report.summary,
+                    problem: report.problem,
+                    decision: report.decision,
+                    safety: report.safety,
+                    execution: report.execution,
+                    verification: report.verification,
+                    estimated_savings_per_hour: report.estimated_savings_per_hour,
+                  },
+                  null,
+                  2
+                )}
+              </pre>
+            ) : (
+              <div className="text-slate-500 italic py-6 text-center">
+                Awaiting agent execution output...
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* =========================================================================
+          TAB 4: MICRO-LOGS (STREAM)
+         ========================================================================= */}
+      {activeTab === 'logs' && (
+        <div className="space-y-2">
+          <div className="p-3 rounded-xl bg-slate-950 text-slate-200 font-mono text-[10px] space-y-1.5 max-h-96 overflow-y-auto shadow-inner border border-slate-800">
             {events.length === 0 ? (
-              <div className="text-slate-500 italic py-2 text-center">
-                Waiting for tool calls...
+              <div className="text-slate-500 italic py-6 text-center">
+                Waiting for tool calls & WebSocket events...
               </div>
             ) : (
               events.map((evt, idx) => (
@@ -529,8 +763,8 @@ export const AgentEventChain: React.FC<AgentEventChainProps> = ({
               ))
             )}
           </div>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
 };

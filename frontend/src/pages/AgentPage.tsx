@@ -8,6 +8,8 @@ import {
   X,
   CheckCircle2,
   AlertTriangle,
+  ShieldAlert,
+  Eye,
   Zap,
   Shield,
   ChevronRight,
@@ -40,6 +42,9 @@ interface MessageItem {
 }
 
 function formatAgentExplanation(report: AgentFinalReport): string {
+  if (typeof report.summary === 'string' && report.summary.trim().length > 0) {
+    return report.summary;
+  }
   if (report.decision.action === 'scale_down') {
     return `I analyzed your cloud fleet and detected that **${report.problem.service}** had excess idle capacity (${report.problem.reason}).\n\nTo optimize cloud spend without impacting throughput or latency, I safely scaled **${report.problem.service}** down from **${report.decision.from_instances}** to **${report.decision.to_instances} instances**.\n\nAll safety guardrails passed, yielding an estimated savings of **$${report.estimated_savings_per_hour.toFixed(2)}/hr**.`;
   }
@@ -208,21 +213,11 @@ export const AgentPage: React.FC<AgentPageProps> = ({
     chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, isAgentRunning]);
 
-  // Sync latest completed report into messages and open panel ONLY if an action was needed
+  // Sync latest completed report into messages and open panel
   useEffect(() => {
     if (agentReport) {
       setSelectedReport(agentReport);
-
-      // Open the agent panel ONLY when an agent action is needed/executed.
-      // If the LLM simply answered (no_action), do NOT slide or open the agent panel.
-      const hasAction =
-        agentReport.decision.action !== 'no_action' &&
-        agentReport.decision.action !== 'none' &&
-        agentReport.decision.action !== 'hold';
-
-      if (hasAction) {
-        setIsPanelExpanded(true);
-      }
+      setIsPanelExpanded(true);
 
       setMessages((prev) => {
         const lastMsg = prev[prev.length - 1];
@@ -276,6 +271,8 @@ export const AgentPage: React.FC<AgentPageProps> = ({
   const handleSelectPill = async (preset: (typeof pillPresets)[0]) => {
     if (isAgentRunning) return;
 
+    setIsPanelExpanded(true);
+
     const userMsg: MessageItem = {
       id: 'user-' + Date.now(),
       role: 'user',
@@ -316,7 +313,15 @@ export const AgentPage: React.FC<AgentPageProps> = ({
         <div className="flex items-center gap-2">
           {/* Expand / Collapse Tasks Button */}
           <button
-            onClick={() => setIsPanelExpanded(!isPanelExpanded)}
+            onClick={() => {
+              if (!isPanelExpanded && !selectedReport && messages.length > 0) {
+                const latestWithReport = [...messages].reverse().find((m) => m.report);
+                if (latestWithReport?.report) {
+                  setSelectedReport(latestWithReport.report);
+                }
+              }
+              setIsPanelExpanded(!isPanelExpanded);
+            }}
             className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border shadow-2xs transition-all cursor-pointer ${
               isPanelExpanded
                 ? 'bg-blue-100 text-blue-800 border-blue-300'
@@ -418,16 +423,40 @@ export const AgentPage: React.FC<AgentPageProps> = ({
                       <div className="bg-white border border-slate-200/90 rounded-2xl rounded-tl-xs px-5 py-4 text-slate-800 leading-relaxed shadow-xs">
                         {renderFormattedMarkdown(msg.content)}
 
-                        {/* Action Pill with Expand Button (Only shown when an agent mutation was executed or attempted) */}
-                        {msg.report &&
-                          msg.report.decision.action !== 'no_action' &&
-                          msg.report.decision.action !== 'none' && (
-                            <div className="mt-4 pt-3 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2.5 text-xs sm:text-sm">
-                              <div className="flex items-center gap-2">
-                                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-blue-50 border border-blue-200/70 text-blue-700 font-mono text-xs font-semibold">
+                        {/* Action Pill with Expand Tasks Button (Rendered on every agent message with report) */}
+                        {msg.report && (
+                          <div className="mt-4 pt-3 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2.5 text-xs sm:text-sm">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              {msg.report.decision.action === 'scale_down' && (
+                                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-emerald-50 border border-emerald-200/70 text-emerald-800 font-mono text-xs font-semibold">
+                                  <Zap className="w-3.5 h-3.5 text-emerald-600" />
+                                  {`${msg.report.problem.service}: ${msg.report.decision.from_instances} → ${msg.report.decision.to_instances} instances`}
+                                </span>
+                              )}
+                              {msg.report.decision.action === 'scale_up' && (
+                                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-blue-50 border border-blue-200/70 text-blue-800 font-mono text-xs font-semibold">
                                   <Zap className="w-3.5 h-3.5 text-blue-600" />
                                   {`${msg.report.problem.service}: ${msg.report.decision.from_instances} → ${msg.report.decision.to_instances} instances`}
                                 </span>
+                              )}
+                              {msg.report.safety.status === 'rejected' && (
+                                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-amber-50 border border-amber-200/70 text-amber-800 font-mono text-xs font-semibold">
+                                  <ShieldAlert className="w-3.5 h-3.5 text-amber-600" />
+                                  {`${msg.report.problem.service}: Safety Blocked (Guardrail Active)`}
+                                </span>
+                              )}
+                              {msg.report.execution.status === 'failed' && (
+                                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-rose-50 border border-rose-200/70 text-rose-800 font-mono text-xs font-semibold">
+                                  <AlertTriangle className="w-3.5 h-3.5 text-rose-600" />
+                                  {`${msg.report.problem.service}: Fault Handled & Rolled Back`}
+                                </span>
+                              )}
+                              {msg.report.decision.action === 'no_action' && msg.report.safety.status !== 'rejected' && (
+                                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-slate-100 border border-slate-200 text-slate-700 font-mono text-xs font-semibold">
+                                  <Eye className="w-3.5 h-3.5 text-slate-500" />
+                                  {`Telemetry & Guardrails Audited`}
+                                </span>
+                              )}
 
                               {msg.report.estimated_savings_per_hour > 0 && (
                                 <span className="text-emerald-700 font-mono font-bold text-xs bg-emerald-50 border border-emerald-200/70 px-2.5 py-1 rounded-lg">
@@ -442,7 +471,7 @@ export const AgentPage: React.FC<AgentPageProps> = ({
                                 setIsPanelExpanded(true);
                               }}
                               className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-white text-xs font-medium transition-all shadow-xs cursor-pointer"
-                              title="Expand task side panel to inspect execution telemetry"
+                              title="Expand task side panel to inspect execution telemetry and server schema"
                             >
                               <PanelRightOpen className="w-3.5 h-3.5 text-blue-300" />
                               <span>Expand Tasks</span>

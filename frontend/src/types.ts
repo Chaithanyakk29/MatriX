@@ -86,6 +86,21 @@ export interface AgentFinalReport {
     latency_ms?: number;
   };
   estimated_savings_per_hour: number;
+  telemetry?: {
+    service_id: string;
+    name?: string;
+    cpu_percent: number;
+    memory_percent: number;
+    requests_per_minute: number;
+    latency_ms: number;
+    max_latency_ms: number;
+    instances: number;
+    min_instances: number;
+    max_instances: number;
+    cost_per_hour: number;
+    cost_per_instance_hour: number;
+    healthy: boolean;
+  };
   mode: 'mistral' | 'ollama' | 'deterministic';
   runId: string;
 }
