@@ -1,0 +1,20 @@
+[
+  {
+    "service_id": "payment-api",
+    "name": "Payment Authorization API",
+    "cpu_percent": 91,
+    "memory_percent": 82,
+    "requests_per_minute": 6400,
+    "previous_requests_per_minute": 6200,
+    "latency_ms": 410,
+    "instances": 3,
+    "cost_per_instance_hour": 7.3333,
+    "cost_per_hour": 22.00,
+    "min_instances": 2,
+    "max_instances": 8,
+    "max_latency_ms": 300,
+    "healthy": true,
+    "timestamp": "2026-09-17T10:30:00Z",
+    "version": 1
+  }
+]
