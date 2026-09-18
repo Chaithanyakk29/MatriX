@@ -26,7 +26,7 @@ export interface IActionRecord {
 export interface IAgentRunRecord {
   runId: string;
   prompt: string;
-  mode: 'ollama' | 'deterministic' | 'error';
+  mode: 'mistral' | 'ollama' | 'deterministic' | 'error';
   status: 'running' | 'completed' | 'failed' | 'cancelled';
   toolsCalled: { name: string; args: any; result: any; timestamp: string }[];
   finalResponse?: any;

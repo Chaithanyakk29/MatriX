@@ -1,6 +1,9 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Sidebar } from './components/Sidebar';
 import { Header } from './components/Header';
+import { AnomalyBanner } from './components/AnomalyBanner';
+import { HitlModal } from './components/HitlModal';
+import { AgentStep } from './components/AgentLiveStepper';
 import { DashboardPage } from './pages/DashboardPage';
 import { ServicesPage } from './pages/ServicesPage';
 import { AgentPage } from './pages/AgentPage';
@@ -37,6 +40,15 @@ export default function App() {
   const [agentReport, setAgentReport] = useState<AgentFinalReport | null>(null);
   const [events, setEvents] = useState<WsEvent[]>([]);
   const [demoMode, setDemoModeState] = useState<boolean>(true);
+
+  // Feature 2: Stepper Loop State
+  const [activeStepperStep, setActiveStepperStep] = useState<AgentStep>('idle');
+
+  // Feature 3: HITL Guardrail Modal State
+  const [isHitlOpen, setIsHitlOpen] = useState<boolean>(false);
+
+  // Feature 4: What-If SLA Risk Slider State (0: Aggressive, 1: Balanced, 2: Max Availability)
+  const [slaRiskLevel, setSlaRiskLevel] = useState<number>(1);
 
   // WebSocket Connection
   const [wsConnected, setWsConnected] = useState<boolean>(false);
@@ -88,6 +100,17 @@ export default function App() {
             const data: WsEvent = JSON.parse(event.data);
             setEvents((prev) => [...prev, data]);
 
+            // Sync Stepper Step based on WebSocket Event Types
+            if (data.type.includes('investigation') || data.type.includes('metric') || data.type.includes('agent_started')) {
+              setActiveStepperStep('think');
+            } else if (data.type.includes('safety') || data.type.includes('decision')) {
+              setActiveStepperStep('decide');
+            } else if (data.type.includes('action') || data.type.includes('verification')) {
+              setActiveStepperStep('act');
+            } else if (data.type.includes('completed')) {
+              setActiveStepperStep('completed');
+            }
+
             // Auto-refresh telemetry on state mutation events
             if (data.type === 'action_succeeded' || data.type === 'cloud_updated') {
               refreshAllData();
@@ -125,13 +148,16 @@ export default function App() {
   const handleRunAgent = async (prompt: string) => {
     setIsAgentRunning(true);
     setAgentReport(null);
+    setActiveStepperStep('think');
 
     try {
       const report = await api.runAgent(prompt);
       setAgentReport(report);
+      setActiveStepperStep('completed');
       await refreshAllData();
     } catch (err: any) {
       console.error('Agent invocation failed:', err);
+      setActiveStepperStep('idle');
     } finally {
       setIsAgentRunning(false);
     }
@@ -177,85 +203,118 @@ export default function App() {
     await handleRunAgent(prompt);
   };
 
+  // Feature 1 Handler: Investigate Anomaly Banner
+  const handleInvestigateAnomaly = () => {
+    setActiveTab('agent');
+    handleRunAgent('Review the current services and reduce unnecessary cost without breaking the latency or availability requirements.');
+  };
+
+  // Feature 3 Handler: HITL Approve Action
+  const handleHitlApprove = async () => {
+    setIsHitlOpen(false);
+    setActiveTab('agent');
+    await handleRunAgent('Orders traffic is high; safely optimize orders-api instances.');
+  };
+
   return (
-    <div className="min-h-screen bg-[#F8FAFC] text-slate-900 flex font-sans antialiased">
-      {/* Fixed Enterprise Sidebar */}
-      <Sidebar
-        activeTab={activeTab}
-        setActiveTab={setActiveTab}
-        activeScenario={summary?.activeScenario || 'default'}
-        demoMode={demoMode}
-        onToggleDemoMode={handleToggleDemoMode}
+    <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col font-sans antialiased selection:bg-blue-100 selection:text-blue-900">
+      {/* Feature 1: The "Monday Morning Anomaly" Banner */}
+      <AnomalyBanner onInvestigate={handleInvestigateAnomaly} />
+
+      {/* Feature 3: Human-in-the-Loop (HITL) Guardrail Modal */}
+      <HitlModal
+        isOpen={isHitlOpen}
+        onApprove={handleHitlApprove}
+        onReject={() => setIsHitlOpen(false)}
+        targetService="orders-api"
+        proposedAction="Scale Down orders-api (5 → 3)"
+        projectedSavings="$40.00/hr"
       />
 
-      {/* Main Content Viewport */}
-      <div className="flex-1 flex flex-col min-w-0">
-        <Header
+      <div className="flex-1 flex min-h-0">
+        {/* Fixed Enterprise Sidebar */}
+        <Sidebar
           activeTab={activeTab}
-          wsConnected={wsConnected}
-          aiMode={systemStatus?.aiProvider.provider || 'Qwen Local'}
+          setActiveTab={setActiveTab}
+          activeScenario={summary?.activeScenario || 'default'}
           demoMode={demoMode}
-          onResetFleet={handleResetScenarios}
+          onToggleDemoMode={handleToggleDemoMode}
         />
 
-        <main className="flex-1 p-6 max-w-7xl w-full mx-auto">
-          {activeTab === 'dashboard' && (
-            <DashboardPage
-              summary={summary}
-              costHistory={costHistory}
-              instanceHistory={instanceHistory}
-              services={services}
-              recentEvents={events}
-              onNavigateTab={(t) => setActiveTab(t)}
-              onQuickRun={(p) => {
-                setActiveTab('agent');
-                handleRunAgent(p);
-              }}
-            />
-          )}
+        {/* Main Content Viewport */}
+        <div className="flex-1 flex flex-col min-w-0">
+          <Header
+            activeTab={activeTab}
+            wsConnected={wsConnected}
+            aiMode={systemStatus?.aiProvider.provider || 'Qwen Local'}
+            demoMode={demoMode}
+            onResetFleet={handleResetScenarios}
+            onTriggerHitl={() => setIsHitlOpen(true)}
+          />
 
-          {activeTab === 'services' && (
-            <ServicesPage services={services} onRefresh={refreshAllData} />
-          )}
+          <main className="flex-1 p-6 max-w-7xl w-full mx-auto">
+            {activeTab === 'dashboard' && (
+              <DashboardPage
+                summary={summary}
+                costHistory={costHistory}
+                instanceHistory={instanceHistory}
+                services={services}
+                recentEvents={events}
+                onNavigateTab={(t) => setActiveTab(t)}
+                onQuickRun={(p) => {
+                  setActiveTab('agent');
+                  handleRunAgent(p);
+                }}
+                isAgentRunning={isAgentRunning}
+                slaRiskLevel={slaRiskLevel}
+                onSlaRiskChange={setSlaRiskLevel}
+              />
+            )}
 
-          {activeTab === 'agent' && (
-            <AgentPage
-              onRunAgent={handleRunAgent}
-              isAgentRunning={isAgentRunning}
-              agentReport={agentReport}
-              events={events}
-              onClearEvents={() => setEvents([])}
-              onLoadScenarioAndRun={handleLoadScenarioAndRun}
-            />
-          )}
+            {activeTab === 'services' && (
+              <ServicesPage services={services} onRefresh={refreshAllData} />
+            )}
 
-          {activeTab === 'actions' && (
-            <ActionsPage actions={actions} onRefresh={refreshAllData} />
-          )}
+            {activeTab === 'agent' && (
+              <AgentPage
+                onRunAgent={handleRunAgent}
+                isAgentRunning={isAgentRunning}
+                agentReport={agentReport}
+                events={events}
+                onClearEvents={() => setEvents([])}
+                onLoadScenarioAndRun={handleLoadScenarioAndRun}
+                activeStepperStep={activeStepperStep}
+              />
+            )}
 
-          {activeTab === 'scenarios' && (
-            <ScenariosPage
-              scenarios={scenarios}
-              activeScenarioId={summary?.activeScenario || 'default'}
-              onLoadScenario={handleLoadScenario}
-              onResetScenarios={handleResetScenarios}
-              onNavigateToAgent={(p) => {
-                setActiveTab('agent');
-                handleRunAgent(p);
-              }}
-            />
-          )}
+            {activeTab === 'actions' && (
+              <ActionsPage actions={actions} onRefresh={refreshAllData} />
+            )}
 
-          {activeTab === 'system' && (
-            <SystemPage
-              systemStatus={systemStatus}
-              wsConnected={wsConnected}
-              demoMode={demoMode}
-              onToggleDemoMode={handleToggleDemoMode}
-              onRefresh={refreshAllData}
-            />
-          )}
-        </main>
+            {activeTab === 'scenarios' && (
+              <ScenariosPage
+                scenarios={scenarios}
+                activeScenarioId={summary?.activeScenario || 'default'}
+                onLoadScenario={handleLoadScenario}
+                onResetScenarios={handleResetScenarios}
+                onNavigateToAgent={(p) => {
+                  setActiveTab('agent');
+                  handleRunAgent(p);
+                }}
+              />
+            )}
+
+            {activeTab === 'system' && (
+              <SystemPage
+                systemStatus={systemStatus}
+                wsConnected={wsConnected}
+                demoMode={demoMode}
+                onToggleDemoMode={handleToggleDemoMode}
+                onRefresh={refreshAllData}
+              />
+            )}
+          </main>
+        </div>
       </div>
     </div>
   );

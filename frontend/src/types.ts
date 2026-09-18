@@ -86,7 +86,7 @@ export interface AgentFinalReport {
     latency_ms?: number;
   };
   estimated_savings_per_hour: number;
-  mode: 'ollama' | 'deterministic';
+  mode: 'mistral' | 'ollama' | 'deterministic';
   runId: string;
 }
 

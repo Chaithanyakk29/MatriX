@@ -1,5 +1,5 @@
-import React from 'react';
-import { RotateCcw, CheckCircle2, AlertCircle } from 'lucide-react';
+import React, { useState } from 'react';
+import { RotateCcw, Cloud, ShieldAlert } from 'lucide-react';
 
 interface HeaderProps {
   activeTab: string;
@@ -7,6 +7,7 @@ interface HeaderProps {
   aiMode: string;
   demoMode: boolean;
   onResetFleet: () => Promise<void>;
+  onTriggerHitl?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -15,26 +16,27 @@ export const Header: React.FC<HeaderProps> = ({
   aiMode,
   demoMode,
   onResetFleet,
+  onTriggerHitl,
 }) => {
   const titles: Record<string, { title: string; subtitle: string }> = {
     dashboard: {
-      title: 'Cloud Cost Overview',
-      subtitle: 'Real-time compute provisioning, utilization telemetry, and spend waste detection.',
+      title: 'NCR Atleos SRE Mission Control',
+      subtitle: 'Real-time compute provisioning, SLA latency boundaries, and automated cost optimization.',
     },
     services: {
-      title: 'Monitored Services',
+      title: 'Monitored Cloud Fleet',
       subtitle: 'Inventory of active cloud microservices with latency SLA policies and capacities.',
     },
     agent: {
       title: 'Autonomous Agent Console',
-      subtitle: 'Goal-driven optimization workflows with deterministic safety checks and verification.',
+      subtitle: 'Think. Decide. Act. loop with deterministic safety guardrails and SLA verification.',
     },
     actions: {
       title: 'Action Audit Trail',
       subtitle: 'Immutable record of cloud scaling mutations, safety engine validations, and SLA checks.',
     },
     scenarios: {
-      title: 'Benchmark Scenarios',
+      title: 'Incident & Benchmark Scenarios',
       subtitle: 'Simulated infrastructure conditions to test cost optimization, traffic surge, and safety guards.',
     },
     system: {
@@ -46,44 +48,35 @@ export const Header: React.FC<HeaderProps> = ({
   const current = titles[activeTab] || { title: 'Overview', subtitle: '' };
 
   return (
-    <header className="h-16 border-b border-slate-200 bg-white/80 backdrop-blur-xs px-6 flex items-center justify-between sticky top-0 z-30">
+    <header className="h-16 border-b border-slate-200 bg-white/90 backdrop-blur-md px-6 flex items-center justify-between sticky top-0 z-30 shadow-2xs">
       <div>
-        <h1 className="text-sm font-semibold text-slate-900">{current.title}</h1>
+        <h1 className="text-sm font-semibold text-slate-900 tracking-tight">{current.title}</h1>
         <p className="text-[11px] text-slate-500 hidden sm:block">{current.subtitle}</p>
       </div>
 
       <div className="flex items-center gap-3">
-        {/* Real-time Status Badge */}
-        <div
-          className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-slate-50 border border-slate-200 text-xs font-mono"
-          title={wsConnected ? 'Real-time WebSocket pipe active' : 'Disconnected from WebSocket'}
-        >
-          <span
-            className={`w-1.5 h-1.5 rounded-full ${
-              wsConnected ? 'bg-emerald-500' : 'bg-amber-500'
-            }`}
-          />
-          <span className="text-slate-700 text-[11px] font-medium">
-            {wsConnected ? 'Live' : 'Offline'}
-          </span>
-        </div>
 
-        {/* Engine Badge */}
-        <div className="hidden md:flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-slate-50 border border-slate-200 text-[11px] text-slate-600 font-mono">
-          <span className="text-slate-400">Engine:</span>
-          <span className="text-slate-900 font-medium">
-            {demoMode ? 'Deterministic Rule Engine' : aiMode || 'Ollama Qwen'}
-          </span>
-        </div>
+
+        {/* Trigger HITL Guardrail Button (Demo helper) */}
+        {onTriggerHitl && (
+          <button
+            onClick={onTriggerHitl}
+            className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium text-amber-800 bg-amber-50 hover:bg-amber-100 border border-amber-200 transition-colors cursor-pointer"
+            title="Simulate High-Risk Action requiring Human In The Loop approval"
+          >
+            <ShieldAlert className="w-3.5 h-3.5 text-amber-600" />
+            <span className="hidden md:inline">Test HITL</span>
+          </button>
+        )}
 
         {/* Reset Fleet Button */}
         <button
           onClick={onResetFleet}
-          className="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-100 border border-slate-200 transition-colors"
+          className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium text-slate-700 hover:text-slate-900 bg-white hover:bg-slate-50 border border-slate-200 shadow-2xs transition-colors cursor-pointer"
           title="Reset simulated services back to default baseline"
         >
           <RotateCcw className="w-3.5 h-3.5 text-slate-400" />
-          <span className="hidden sm:inline">Reset Fleet</span>
+          <span className="hidden sm:inline">Reset</span>
         </button>
       </div>
     </header>

@@ -5,14 +5,14 @@ import { agent } from '../agent/agent';
 export const configRouter = Router();
 
 configRouter.get('/config/llm-status', async (req, res) => {
-  const isOllamaUp = await agent.checkOllamaHealth();
+  const isMistralUp = await agent.checkMistralHealth();
   res.json({
     success: true,
     data: {
-      provider: 'ollama',
-      model: process.env.LLM_MODEL || 'qwen2.5:7b',
-      apiUrl: process.env.LLM_API_URL || 'http://localhost:11434/v1/chat/completions',
-      status: isOllamaUp ? 'connected' : 'offline',
+      provider: 'mistral',
+      model: process.env.MISTRAL_MODEL || 'mistral-small-latest',
+      apiUrl: process.env.MISTRAL_API_URL || 'https://api.mistral.ai/v1/chat/completions',
+      status: isMistralUp ? 'connected' : 'offline',
       demoModeActive: agent.isDemoMode(),
     },
     requestId: (req as any).requestId,

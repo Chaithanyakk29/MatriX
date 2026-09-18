@@ -18,7 +18,7 @@ healthRouter.get('/health', (req, res) => {
 });
 
 healthRouter.get('/system/status', async (req, res) => {
-  const isOllamaUp = await agent.checkOllamaHealth();
+  const isMistralUp = await agent.checkMistralHealth();
   const dbStatus = getDatabaseStatus();
 
   res.json({
@@ -27,10 +27,10 @@ healthRouter.get('/system/status', async (req, res) => {
       system: 'online',
       database: dbStatus,
       aiProvider: {
-        provider: 'Ollama / Local Qwen',
-        status: isOllamaUp ? 'connected' : 'offline',
-        activeMode: isOllamaUp && !agent.isDemoMode() ? 'ollama' : 'deterministic_demo_mode',
-        model: process.env.LLM_MODEL || 'qwen2.5:7b',
+        provider: 'Mistral AI API',
+        status: isMistralUp ? 'connected' : 'offline',
+        activeMode: isMistralUp && !agent.isDemoMode() ? 'mistral' : 'deterministic_demo_mode',
+        model: process.env.MISTRAL_MODEL || 'mistral-small-latest',
       },
       environment: process.env.NODE_ENV || 'development',
       timestamp: new Date().toISOString(),
