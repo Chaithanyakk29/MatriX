@@ -177,35 +177,46 @@ export async function executeTool(name: string, args: any, runId?: string): Prom
 
     case 'get_service': {
       const service = simulator.getService(args.service_id);
-      if (!service) return { error: `Service ${args.service_id} not found` };
+      if (!service) {
+        const all = simulator.getAllServices().map(s => s.service_id).join(', ');
+        return { error: `Service '${args.service_id}' not found. Available services: ${all}` };
+      }
       return service;
     }
 
     case 'get_service_metrics': {
-      const metrics = simulator.getServiceMetrics(args.service_id);
-      if (!metrics) return { error: `Service ${args.service_id} not found` };
-      broadcastEvent('metric_fetched', `Fetched metrics for ${args.service_id}: CPU ${metrics.cpu_percent}%, ${metrics.requests_per_minute} RPM`, metrics, runId);
+      const service = simulator.getService(args.service_id);
+      if (!service) {
+        const all = simulator.getAllServices().map(s => s.service_id).join(', ');
+        return { error: `Service '${args.service_id}' not found. Available services: ${all}` };
+      }
+      const metrics = simulator.getServiceMetrics(service.service_id);
+      broadcastEvent('metric_fetched', `Fetched metrics for ${service.service_id}: CPU ${metrics?.cpu_percent}%, ${metrics?.requests_per_minute} RPM`, metrics, runId);
       return metrics;
     }
 
     case 'get_latest_traffic': {
-      const traffic = simulator.getLatestTraffic(args.service_id);
-      if (!traffic) return { error: `Service ${args.service_id} not found` };
-      broadcastEvent('metric_fetched', `Live traffic for ${args.service_id}: ${traffic.requests_per_minute} RPM`, traffic, runId);
+      const service = simulator.getService(args.service_id);
+      const targetId = service ? service.service_id : args.service_id;
+      const traffic = simulator.getLatestTraffic(targetId);
+      if (!traffic) return { error: `Service '${args.service_id}' not found` };
+      broadcastEvent('metric_fetched', `Live traffic for ${targetId}: ${traffic.requests_per_minute} RPM`, traffic, runId);
       return traffic;
     }
 
     case 'get_recent_events': {
-      if (args.service_id) {
-        return await AuditRepository.getEventsByService(args.service_id);
+      const service = args.service_id ? simulator.getService(args.service_id) : undefined;
+      const targetId = service ? service.service_id : args.service_id;
+      if (targetId) {
+        return await AuditRepository.getEventsByService(targetId);
       }
       return await AuditRepository.getAllEvents();
     }
 
     case 'get_service_cost': {
-      const cost = simulator.getServiceCost(args.service_id);
-      if (!cost) return { error: `Service ${args.service_id} not found` };
-      return cost;
+      const service = simulator.getService(args.service_id);
+      if (!service) return { error: `Service '${args.service_id}' not found` };
+      return simulator.getServiceCost(service.service_id);
     }
 
     case 'get_current_cloud_summary': {
@@ -213,15 +224,17 @@ export async function executeTool(name: string, args: any, runId?: string): Prom
     }
 
     case 'validate_action': {
-      broadcastEvent('safety_check_started', `Validating action ${args.action} on ${args.service_id}`, args, runId);
+      const service = simulator.getService(args.service_id);
+      const targetId = service ? service.service_id : args.service_id;
+      broadcastEvent('safety_check_started', `Validating action ${args.action} on ${targetId}`, args, runId);
       const validation = safetyEngine.validateAction({
         action: args.action,
-        service_id: args.service_id,
+        service_id: targetId,
         target_instances: args.target_instances,
       });
 
       if (validation.allowed) {
-        broadcastEvent('safety_check_passed', `Safety checks passed for ${args.service_id}`, validation, runId);
+        broadcastEvent('safety_check_passed', `Safety checks passed for ${targetId}`, validation, runId);
       } else {
         broadcastEvent('safety_check_failed', `Safety check rejected: ${validation.reason}`, validation, runId);
       }
@@ -230,17 +243,22 @@ export async function executeTool(name: string, args: any, runId?: string): Prom
 
     case 'scale_service': {
       const service = simulator.getService(args.service_id);
-      if (!service) return { error: `Service ${args.service_id} not found` };
+      if (!service) {
+        const all = simulator.getAllServices().map(s => s.service_id).join(', ');
+        return { error: `Service '${args.service_id}' not found. Available services: ${all}` };
+      }
 
-      const actionType = args.target_instances > service.instances ? 'scale_up' : 'scale_down';
+      const canonicalId = service.service_id;
+      const targetInstances = Number(args.target_instances);
+      const actionType = targetInstances > service.instances ? 'scale_up' : 'scale_down';
       const actionProposal: ActionProposal = {
         action: actionType,
-        service_id: args.service_id,
-        target_instances: args.target_instances,
+        service_id: canonicalId,
+        target_instances: targetInstances,
         observed_version: service.version,
       };
 
-      broadcastEvent('safety_check_started', `Validating ${actionType} from ${service.instances} -> ${args.target_instances}`, actionProposal, runId);
+      broadcastEvent('safety_check_started', `Validating ${actionType} from ${service.instances} -> ${targetInstances} on ${canonicalId}`, actionProposal, runId);
       const validation = safetyEngine.validateAction(actionProposal);
 
       const actionId = `act-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
@@ -250,10 +268,10 @@ export async function executeTool(name: string, args: any, runId?: string): Prom
         broadcastEvent('safety_check_failed', `Safety check rejected action: ${validation.reason}`, validation, runId);
         const record: IActionRecord = {
           actionId,
-          serviceId: args.service_id,
+          serviceId: canonicalId,
           action: actionType,
           previousInstances: prevInstances,
-          requestedInstances: args.target_instances,
+          requestedInstances: targetInstances,
           finalInstances: prevInstances,
           status: 'rejected',
           reason: validation.reason,
@@ -266,19 +284,20 @@ export async function executeTool(name: string, args: any, runId?: string): Prom
         return { status: 'rejected', reason: validation.reason, checks: validation.checks };
       }
 
-      broadcastEvent('safety_check_passed', `Safety checks approved scaling ${args.service_id}`, validation, runId);
-      broadcastEvent('action_started', `Executing ${actionType} ${prevInstances} -> ${args.target_instances}`, { service_id: args.service_id, target: args.target_instances }, runId);
+      broadcastEvent('safety_check_passed', `Safety checks approved scaling ${canonicalId}`, validation, runId);
+      broadcastEvent('action_started', `Executing ${actionType} ${prevInstances} -> ${targetInstances}`, { service_id: canonicalId, target: targetInstances }, runId);
 
       try {
-        const result = simulator.applyScale(args.service_id, args.target_instances);
-        const newCost = simulator.getService(args.service_id)?.cost_per_hour || 0;
-        const savings = Math.max(0, parseFloat(((prevInstances - args.target_instances) * service.cost_per_instance_hour).toFixed(2)));
+        const result = simulator.applyScale(canonicalId, targetInstances);
+        const updatedService = simulator.getService(canonicalId);
+        const newCost = updatedService?.cost_per_hour || 0;
+        const savings = Math.max(0, parseFloat(((prevInstances - targetInstances) * service.cost_per_instance_hour).toFixed(2)));
 
-        broadcastEvent('action_succeeded', `Successfully scaled ${args.service_id} to ${args.target_instances} instances`, { ...result, newCost }, runId);
+        broadcastEvent('action_succeeded', `Successfully scaled ${canonicalId} to ${targetInstances} instances`, { ...result, newCost }, runId);
 
         // Verification step
-        broadcastEvent('verification_started', `Initiating post-action verification on ${args.service_id}`, {}, runId);
-        const verification = simulator.verifyService(args.service_id);
+        broadcastEvent('verification_started', `Initiating post-action verification on ${canonicalId}`, {}, runId);
+        const verification = simulator.verifyService(canonicalId);
 
         if (verification.status === 'passed') {
           broadcastEvent('verification_succeeded', `Post-action verification verified state: ${verification.actual_instances} instances, ${verification.latency_ms}ms latency`, verification, runId);
@@ -288,10 +307,10 @@ export async function executeTool(name: string, args: any, runId?: string): Prom
 
         const record: IActionRecord = {
           actionId,
-          serviceId: args.service_id,
+          serviceId: canonicalId,
           action: actionType,
           previousInstances: prevInstances,
-          requestedInstances: args.target_instances,
+          requestedInstances: targetInstances,
           finalInstances: result.finalInstances,
           status: 'success',
           reason: args.reason || 'Optimized by CloudGuard AI',
@@ -311,6 +330,7 @@ export async function executeTool(name: string, args: any, runId?: string): Prom
         return {
           status: 'success',
           actionId,
+          service_id: canonicalId,
           previousInstances: prevInstances,
           finalInstances: result.finalInstances,
           verification,
@@ -320,10 +340,10 @@ export async function executeTool(name: string, args: any, runId?: string): Prom
         broadcastEvent('action_failed', `Action execution failed: ${err.message}`, { error: err.message }, runId);
         const record: IActionRecord = {
           actionId,
-          serviceId: args.service_id,
+          serviceId: canonicalId,
           action: actionType,
           previousInstances: prevInstances,
-          requestedInstances: args.target_instances,
+          requestedInstances: targetInstances,
           finalInstances: prevInstances,
           status: 'failed',
           reason: err.message,
@@ -340,10 +360,11 @@ export async function executeTool(name: string, args: any, runId?: string): Prom
     case 'stop_service': {
       const service = simulator.getService(args.service_id);
       if (!service) return { error: `Service ${args.service_id} not found` };
+      const canonicalId = service.service_id;
 
       const validation = safetyEngine.validateAction({
         action: 'stop_idle_service',
-        service_id: args.service_id,
+        service_id: canonicalId,
       });
 
       if (!validation.allowed) {
@@ -351,20 +372,23 @@ export async function executeTool(name: string, args: any, runId?: string): Prom
       }
 
       try {
-        simulator.stopService(args.service_id);
-        return { status: 'success', stopped: true };
+        simulator.stopService(canonicalId);
+        return { status: 'success', service_id: canonicalId, instances: 0 };
       } catch (e: any) {
         return { status: 'failed', error: e.message };
       }
     }
 
     case 'verify_service': {
-      broadcastEvent('verification_started', `Verifying service ${args.service_id}`, {}, runId);
-      const verification = simulator.verifyService(args.service_id);
+      const service = simulator.getService(args.service_id);
+      if (!service) return { status: 'failed', message: `Service '${args.service_id}' not found` };
+      const canonicalId = service.service_id;
+      broadcastEvent('verification_started', `Verifying service ${canonicalId}`, {}, runId);
+      const verification = simulator.verifyService(canonicalId);
       if (verification.status === 'passed') {
-        broadcastEvent('verification_succeeded', `Verified ${args.service_id}`, verification, runId);
+        broadcastEvent('verification_succeeded', `Verified ${canonicalId} health & SLA compliance`, verification, runId);
       } else {
-        broadcastEvent('verification_failed', `Verification failed for ${args.service_id}`, verification, runId);
+        broadcastEvent('verification_failed', `Verification failed for ${canonicalId}`, verification, runId);
       }
       return verification;
     }

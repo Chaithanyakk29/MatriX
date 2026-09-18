@@ -52,7 +52,7 @@ export class SafetyEngine {
       checks.push({ name: 'Service Existence', passed: false, message: `Service '${proposal.service_id}' does not exist.` });
       return { allowed: false, checks, reason: `Service '${proposal.service_id}' not found.` };
     }
-    checks.push({ name: 'Service Existence', passed: true, message: `Service '${proposal.service_id}' located.` });
+    checks.push({ name: 'Service Existence', passed: true, message: `Service '${service.service_id}' located.` });
 
     // 3. Health & Availability Constraint
     if (!service.healthy) {
@@ -137,7 +137,7 @@ export class SafetyEngine {
       checks.push({ name: 'Directional Logic', passed: true, message: 'Proposed scaling direction matches current instance count.' });
 
       // 6. Data Freshness & Traffic Discrepancy Check (Test C)
-      const latestTraffic = simulator.getLatestTraffic(proposal.service_id);
+      const latestTraffic = simulator.getLatestTraffic(service.service_id);
       if (latestTraffic && proposal.action === 'scale_down') {
         const trafficDelta = latestTraffic.requests_per_minute - service.requests_per_minute;
         if (latestTraffic.requests_per_minute > 2000 && trafficDelta > 1000) {

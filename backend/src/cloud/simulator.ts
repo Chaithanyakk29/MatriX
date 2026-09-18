@@ -96,7 +96,28 @@ export class CloudSimulator {
   }
 
   public getService(serviceId: string): ServiceData | undefined {
-    return this.services.find(s => s.service_id === serviceId);
+    if (!serviceId) return undefined;
+    const clean = serviceId.trim().toLowerCase();
+
+    // 1. Exact match
+    const exact = this.services.find(s => s.service_id.toLowerCase() === clean);
+    if (exact) return exact;
+
+    // 2. Normalized match (strip -api, -service, -worker, -gateway, backend)
+    const norm = (str: string) => str.replace(/[-_]?(api|service|worker|gateway|backend)$/i, '').replace(/[-_]/g, '');
+    const normClean = norm(clean);
+    const normMatch = this.services.find(s => norm(s.service_id) === normClean);
+    if (normMatch) return normMatch;
+
+    // 3. Substring match
+    const sub = this.services.find(s => s.service_id.toLowerCase().includes(clean) || clean.includes(s.service_id.toLowerCase()));
+    if (sub) return sub;
+
+    // 4. Human-readable name match
+    const nameMatch = this.services.find(s => s.name && s.name.toLowerCase().includes(clean));
+    if (nameMatch) return nameMatch;
+
+    return undefined;
   }
 
   public getServiceMetrics(serviceId: string) {
@@ -127,23 +148,28 @@ export class CloudSimulator {
   }
 
   public setFreshTraffic(serviceId: string, rpm: number) {
-    this.freshTrafficStore[serviceId] = {
+    const s = this.getService(serviceId);
+    const canonicalId = s ? s.service_id : serviceId;
+    this.freshTrafficStore[canonicalId] = {
       rpm,
       timestamp: new Date().toISOString(),
     };
   }
 
   public getLatestTraffic(serviceId: string): { requests_per_minute: number; timestamp: string; is_live: boolean } | undefined {
-    if (this.freshTrafficStore[serviceId]) {
+    const s = this.getService(serviceId);
+    const canonicalId = s ? s.service_id : serviceId;
+
+    if (this.freshTrafficStore[canonicalId]) {
       return {
-        requests_per_minute: this.freshTrafficStore[serviceId].rpm,
-        timestamp: this.freshTrafficStore[serviceId].timestamp,
+        requests_per_minute: this.freshTrafficStore[canonicalId].rpm,
+        timestamp: this.freshTrafficStore[canonicalId].timestamp,
         is_live: true,
       };
     }
 
     // Default simulation freshness test for checkout-api (Test C)
-    if (serviceId === 'checkout-api') {
+    if (canonicalId === 'checkout-api' || canonicalId === 'checkout-service' || canonicalId === 'checkout') {
       return {
         requests_per_minute: 5200,
         timestamp: new Date().toISOString(),
@@ -151,7 +177,6 @@ export class CloudSimulator {
       };
     }
 
-    const s = this.getService(serviceId);
     if (!s) return undefined;
 
     return {
@@ -168,10 +193,10 @@ export class CloudSimulator {
     }
 
     // Simulated cloud capacity failure constraint for payment-api (Test D)
-    if (serviceId === 'payment-api' && targetInstances > 4) {
+    if (s.service_id === 'payment-api' && targetInstances > 4) {
       AuditRepository.saveEvent({
         eventId: `evt-${Date.now()}`,
-        serviceId,
+        serviceId: s.service_id,
         type: 'CAPACITY_UNAVAILABLE',
         severity: 'error',
         message: `Cloud provider rejected scale to ${targetInstances} instances: capacity unavailable in cluster region us-east-1.`,
