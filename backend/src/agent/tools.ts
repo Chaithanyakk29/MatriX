@@ -156,6 +156,37 @@ export const toolDefinitions: ToolDefinition[] = [
   {
     type: 'function',
     function: {
+      name: 'resize_service',
+      description: 'Vertically rightsize an instance flavor (e.g. e2-standard-4 to e2-standard-2) to reduce unit hourly cost without touching replica counts.',
+      parameters: {
+        type: 'object',
+        properties: {
+          service_id: { type: 'string', description: 'Service identifier' },
+          instance_type: { type: 'string', description: 'Target VM flavor: e2-micro, e2-small, e2-medium, e2-standard-2, e2-standard-4' },
+          reason: { type: 'string', description: 'Justification for resizing' },
+        },
+        required: ['service_id', 'instance_type'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'delay_batch_workload',
+      description: 'Defer non-critical overnight batch workloads (e.g. reports-worker) to off-peak hours, dropping compute spend by 70%.',
+      parameters: {
+        type: 'object',
+        properties: {
+          service_id: { type: 'string', description: 'Batch worker service identifier' },
+          reason: { type: 'string', description: 'Justification for deferring workload' },
+        },
+        required: ['service_id'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
       name: 'verify_service',
       description: 'Fetch the post-action state of a service to verify whether the executed change succeeded and meets SLAs.',
       parameters: {
@@ -381,6 +412,53 @@ export async function executeTool(name: string, args: any, runId?: string): Prom
       try {
         simulator.stopService(canonicalId);
         return { status: 'success', service_id: canonicalId, instances: 0 };
+      } catch (e: any) {
+        return { status: 'failed', error: e.message };
+      }
+    }
+
+    case 'resize_service': {
+      const service = simulator.getService(args.service_id);
+      if (!service) return { error: `Service ${args.service_id} not found` };
+      const canonicalId = service.service_id;
+
+      const validation = safetyEngine.validateAction({
+        action: 'resize',
+        service_id: canonicalId,
+        instance_type: args.instance_type,
+      });
+
+      if (!validation.allowed) {
+        return { status: 'rejected', reason: validation.reason, checks: validation.checks };
+      }
+
+      try {
+        const resizeRes = simulator.applyResize(canonicalId, args.instance_type || 'e2-standard-2');
+        broadcastEvent('action_succeeded', `Vertically rightsized ${canonicalId} to ${resizeRes.finalType}`, resizeRes, runId);
+        return { status: 'success', service_id: canonicalId, ...resizeRes };
+      } catch (e: any) {
+        return { status: 'failed', error: e.message };
+      }
+    }
+
+    case 'delay_batch_workload': {
+      const service = simulator.getService(args.service_id);
+      if (!service) return { error: `Service ${args.service_id} not found` };
+      const canonicalId = service.service_id;
+
+      const validation = safetyEngine.validateAction({
+        action: 'delay_batch_workload',
+        service_id: canonicalId,
+      });
+
+      if (!validation.allowed) {
+        return { status: 'rejected', reason: validation.reason, checks: validation.checks };
+      }
+
+      try {
+        const delayRes = simulator.delayBatchWorkload(canonicalId);
+        broadcastEvent('action_succeeded', `Deferred batch workload on ${canonicalId} to off-peak window`, delayRes, runId);
+        return { status: 'success', service_id: canonicalId, ...delayRes };
       } catch (e: any) {
         return { status: 'failed', error: e.message };
       }
