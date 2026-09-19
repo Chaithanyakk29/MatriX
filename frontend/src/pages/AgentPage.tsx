@@ -359,7 +359,7 @@ export const AgentPage: React.FC<AgentPageProps> = ({
         {/* Left Pane: Chat Box (Smoothly shrinks and pushes aside when panel expands) */}
         <div className="flex-1 flex flex-col min-w-0 bg-white border border-slate-200 rounded-2xl shadow-2xs overflow-hidden relative h-full transition-all duration-300">
           {/* Scrollable Message Thread */}
-          <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-6 space-y-6 pb-40">
+          <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-6 space-y-6">
             {/* Empty / Welcome State */}
             {messages.length === 0 && !isAgentRunning && (
               <div className="max-w-xl mx-auto py-12 text-center space-y-6">
@@ -519,8 +519,8 @@ export const AgentPage: React.FC<AgentPageProps> = ({
             <div ref={chatBottomRef} />
           </div>
 
-          {/* Floating Bottom Input Bar */}
-          <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-white via-white/95 to-transparent pt-3 pb-3 px-4 sm:px-6 z-20">
+          {/* Docked Bottom Input Bar */}
+          <div className="shrink-0 bg-white border-t border-slate-100 p-3 sm:px-6 z-10">
             <div className="max-w-2xl mx-auto space-y-2">
               {/* Quick Pill Presets Bar */}
               <div className="flex flex-wrap items-center gap-1.5">
