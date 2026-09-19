@@ -101,7 +101,7 @@ export interface AgentFinalReport {
     cost_per_instance_hour: number;
     healthy: boolean;
   };
-  mode: 'mistral' | 'ollama' | 'deterministic';
+  mode: 'mistral' | 'ollama' | 'deterministic' | 'langgraph';
   runId: string;
 }
 

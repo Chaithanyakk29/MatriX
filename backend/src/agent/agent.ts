@@ -4,6 +4,7 @@ import { broadcastEvent } from '../websocket/server';
 import { AuditRepository, IAgentRunRecord } from '../models/records';
 import { simulator } from '../cloud/simulator';
 import { safetyEngine } from '../safety/safetyEngine';
+import { runLangGraphAgent } from './langgraphAgent';
 
 export interface AgentFinalReport {
   summary: string;
@@ -45,7 +46,7 @@ export interface AgentFinalReport {
     cost_per_instance_hour: number;
     healthy: boolean;
   };
-  mode: 'mistral' | 'ollama' | 'deterministic';
+  mode: 'mistral' | 'ollama' | 'deterministic' | 'langgraph';
   runId: string;
 }
 
@@ -207,19 +208,23 @@ export class AgentOrchestrator {
     const isMistralUp = await this.checkMistralHealth();
     if (isMistralUp) {
       return {
-        provider: 'Mistral AI',
+        provider: 'LangGraph + Mistral AI',
         available: true,
         model: process.env.MISTRAL_MODEL || 'open-mistral-7b',
       };
     }
     return {
-      provider: 'Deterministic SRE Engine',
-      available: false,
-      model: 'deterministic-rules-v2',
+      provider: 'LangGraph StateGraph Engine',
+      available: true,
+      model: 'langgraph-sre-v1.4',
     };
   }
 
   public async runTask(userPrompt: string): Promise<AgentFinalReport> {
+    return await runLangGraphAgent(userPrompt, this.demoModeOnly);
+  }
+
+  public async runTaskLegacy(userPrompt: string): Promise<AgentFinalReport> {
     const runId = `run-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
     const startTime = Date.now();
     const toolsCalled: IAgentRunRecord['toolsCalled'] = [];

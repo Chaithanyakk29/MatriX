@@ -308,6 +308,13 @@ export const AgentPage: React.FC<AgentPageProps> = ({
             <span className="font-semibold text-slate-900">Agent Conversation</span>
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse ml-0.5" />
           </div>
+
+          <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-indigo-50 border border-indigo-200 text-xs font-mono text-indigo-800 shadow-2xs">
+            <span className="w-1.5 h-1.5 rounded-full bg-indigo-600" />
+            <span className="font-bold">LangGraph v1.4</span>
+            <span className="text-indigo-400">•</span>
+            <span className="text-indigo-700">StateGraph</span>
+          </div>
         </div>
 
         <div className="flex items-center gap-2">

@@ -55,12 +55,14 @@ export const Header: React.FC<HeaderProps> = ({
       </div>
 
       <div className="flex items-center gap-3">
-        {/* Google Cloud GKE Status Badge */}
+        {/* Google Cloud GKE & LangGraph Status Badge */}
         <div className="hidden lg:flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-50 border border-slate-200 text-xs font-mono text-slate-700 shadow-2xs">
           <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
           <span className="font-semibold text-slate-900">GCP us-central1</span>
           <span className="text-slate-300">•</span>
           <span className="text-blue-600 font-semibold">GKE Autopilot</span>
+          <span className="text-slate-300">•</span>
+          <span className="text-indigo-600 font-bold">LangGraph v1.4</span>
         </div>
 
 
