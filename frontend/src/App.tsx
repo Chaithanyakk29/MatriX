@@ -112,7 +112,7 @@ export default function App() {
             }
 
             // Auto-refresh telemetry on state mutation events
-            if (data.type === 'action_succeeded' || data.type === 'cloud_updated') {
+            if (data.type === 'action_succeeded' || data.type === 'cloud_updated' || data.type === 'agent_completed') {
               refreshAllData();
             }
           } catch (e) {
@@ -143,6 +143,11 @@ export default function App() {
       if (reconnectTimeout) clearTimeout(reconnectTimeout);
     };
   }, [refreshAllData]);
+
+  // Re-fetch fresh telemetry whenever the user navigates between tabs
+  useEffect(() => {
+    refreshAllData();
+  }, [activeTab, refreshAllData]);
 
   // Handler: Run Agent
   const handleRunAgent = async (prompt: string) => {

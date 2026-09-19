@@ -329,12 +329,31 @@ export class CloudSimulator {
         return false;
       }
 
+      // Load baseline fleet first so microservices never disappear during benchmark scenarios
+      const defaultPath = path.join(this.scenariosDir, 'default.json');
+      let baseline: ServiceData[] = [];
+      if (fs.existsSync(defaultPath)) {
+        try {
+          baseline = JSON.parse(fs.readFileSync(defaultPath, 'utf-8'));
+        } catch {}
+      }
+
       const fileData = fs.readFileSync(filePath, 'utf-8');
       const loaded: ServiceData[] = JSON.parse(fileData);
 
+      // Merge scenario overrides over baseline
+      const mergedMap = new Map<string, ServiceData>();
+      for (const s of baseline) {
+        mergedMap.set(s.service_id, { ...s });
+      }
+      for (const s of loaded) {
+        mergedMap.set(s.service_id, { ...(mergedMap.get(s.service_id) || {}), ...s });
+      }
+      const mergedList = Array.from(mergedMap.values());
+
       // Normalize fields if needed
       const isTestC = canonicalId.toLowerCase().includes('testc') || canonicalId.toLowerCase().includes('test-c');
-      this.services = loaded.map(s => {
+      this.services = mergedList.map(s => {
         let ts = new Date().toISOString();
         if (isTestC && (s.service_id === 'checkout-api' || s.service_id === 'checkout')) {
           // Explicitly simulate 30-minute-old stale telemetry for Test C
