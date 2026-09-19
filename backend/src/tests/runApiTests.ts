@@ -31,37 +31,127 @@ async function runTests() {
   const orders = simulator.getService('orders-api')!;
   assert(orders !== undefined, 'orders-api loaded in simulator');
 
-  // Test min instances constraint
+  // Test min instances constraint (Constraint 1)
   const belowMinCheck = safetyEngine.validateAction({
     action: 'scale_down',
     service_id: 'orders-api',
-    target_instances: orders.min_instances - 1, // Below min
+    target_instances: orders.min_instances - 1,
   });
-  assert(!belowMinCheck.allowed, 'Safety Engine rejects target below min_instances', belowMinCheck.reason);
+  assert(!belowMinCheck.allowed, 'Constraint 1: Rejects target below min_instances', belowMinCheck.reason);
 
-  // Test max instances constraint
+  // Test max instances constraint (Constraint 2)
   const aboveMaxCheck = safetyEngine.validateAction({
     action: 'scale_up',
     service_id: 'orders-api',
-    target_instances: orders.max_instances + 1, // Above max
+    target_instances: orders.max_instances + 1,
   });
-  assert(!aboveMaxCheck.allowed, 'Safety Engine rejects target above max_instances', aboveMaxCheck.reason);
+  assert(!aboveMaxCheck.allowed, 'Constraint 2: Rejects target above max_instances', aboveMaxCheck.reason);
 
-  // Test stale metric check (checkout-api)
-  const staleCheck = safetyEngine.validateAction({
+  // Test projected latency SLA breach (Constraint 3)
+  const projectedSlaBreach = safetyEngine.validateAction({
+    action: 'scale_down',
+    service_id: 'orders-api',
+    target_instances: 2, // 1200 RPM on 2 instances would surge latency
+  });
+  assert(!projectedSlaBreach.allowed, 'Constraint 3: Rejects scale_down when projected latency violates SLA', projectedSlaBreach.reason);
+
+  // Test degraded/unhealthy service check (Constraint 4)
+  const degradedService = simulator.getService('payment-api')!;
+  const origHealthy = degradedService.healthy;
+  degradedService.healthy = false;
+  const unhealthyCheck = safetyEngine.validateAction({
+    action: 'scale_up',
+    service_id: 'payment-api',
+    target_instances: 4,
+  });
+  assert(!unhealthyCheck.allowed, 'Constraint 4: Rejects mutation on unhealthy/degraded service', unhealthyCheck.reason);
+  degradedService.healthy = origHealthy; // restore
+
+  // Test stale metric check (live traffic surge) (Constraint 5a)
+  const staleSurgeCheck = safetyEngine.validateAction({
     action: 'scale_down',
     service_id: 'checkout-api',
     target_instances: 2,
   });
-  assert(!staleCheck.allowed, 'Safety Engine rejects scale_down when live traffic is surging (stale data)', staleCheck.reason);
+  assert(!staleSurgeCheck.allowed, 'Constraint 5a: Rejects scale_down when live traffic is surging (stale data)', staleSurgeCheck.reason);
 
-  // Test safe scale down (reports-worker)
-  const safeScaleCheck = safetyEngine.validateAction({
+  // Test stale timestamp age check (Constraint 5b)
+  const staleTimestamp = new Date(Date.now() - 30 * 60 * 1000).toISOString(); // 30 minutes ago
+  const staleAgeCheck = safetyEngine.validateAction({
+    action: 'scale_down',
+    service_id: 'reports-worker',
+    target_instances: 1,
+    observed_timestamp: staleTimestamp,
+  });
+  assert(!staleAgeCheck.allowed, 'Constraint 5b: Rejects action when observed_timestamp is older than freshness threshold', staleAgeCheck.reason);
+
+  // Test zero-traffic safety with active compute (Constraint 6)
+  const workerService = simulator.getService('reports-worker')!;
+  const origCpu = workerService.cpu_percent;
+  workerService.cpu_percent = 85; // Active background compute
+  const highCpuDownscale = safetyEngine.validateAction({
     action: 'scale_down',
     service_id: 'reports-worker',
     target_instances: 1,
   });
-  assert(safeScaleCheck.allowed, 'Safety Engine allows safe scale_down on idle reports-worker', safeScaleCheck.checks);
+  assert(!highCpuDownscale.allowed, 'Constraint 6: Rejects downscale when background compute is high (CPU 85%)', highCpuDownscale.reason);
+  workerService.cpu_percent = origCpu; // restore
+
+  // Test concurrency / version mismatch (Constraint 7)
+  const versionConflict = safetyEngine.validateAction({
+    action: 'scale_down',
+    service_id: 'reports-worker',
+    target_instances: 1,
+    observed_version: workerService.version + 99, // mismatch
+  });
+  assert(!versionConflict.allowed, 'Constraint 7: Rejects action when observed_version mismatches live cluster version', versionConflict.reason);
+
+  // Test directional sanity (Constraint 8)
+  const idleScaleUp = safetyEngine.validateAction({
+    action: 'scale_up',
+    service_id: 'reports-worker',
+    target_instances: 4, // worker has 0 RPM and low CPU
+  });
+  assert(!idleScaleUp.allowed, 'Constraint 8a: Rejects scale_up on completely idle service', idleScaleUp.reason);
+
+  const wrongDirectionDown = safetyEngine.validateAction({
+    action: 'scale_down',
+    service_id: 'reports-worker',
+    target_instances: workerService.instances, // target (4) >= current (4), should reject
+  });
+  assert(!wrongDirectionDown.allowed, 'Constraint 8b: Rejects scale_down when target >= current instances', wrongDirectionDown.reason);
+
+  // Test schema validation (Constraint 9)
+  const invalidSchemaNonInt = safetyEngine.validateAction({
+    action: 'scale_down',
+    service_id: 'reports-worker',
+    target_instances: 1.5 as any,
+  });
+  assert(!invalidSchemaNonInt.allowed, 'Constraint 9a: Rejects non-integer target_instances (1.5)', invalidSchemaNonInt.reason);
+
+  const invalidSchemaNegative = safetyEngine.validateAction({
+    action: 'scale_down',
+    service_id: 'reports-worker',
+    target_instances: -1,
+  });
+  assert(!invalidSchemaNegative.allowed, 'Constraint 9b: Rejects negative target_instances (-1)', invalidSchemaNegative.reason);
+
+  const invalidSchemaAction = safetyEngine.validateAction({
+    action: 'delete_cluster' as any,
+    service_id: 'reports-worker',
+    target_instances: 1,
+  });
+  assert(!invalidSchemaAction.allowed, 'Constraint 9c: Rejects unsupported action type (delete_cluster)', invalidSchemaAction.reason);
+
+  // Test safe scale down passes all constraints
+  const safeScaleCheck = safetyEngine.validateAction({
+    action: 'scale_down',
+    service_id: 'reports-worker',
+    target_instances: 1,
+    observed_version: workerService.version,
+    observed_timestamp: new Date().toISOString(),
+  });
+  assert(safeScaleCheck.allowed, 'All Constraints: Allows safe scale_down on idle reports-worker with fresh telemetry', safeScaleCheck.checks);
 
   // 2. Simulator State & Capacity Failure
   console.log('\n[2] Cloud Simulator State & Capacity Constraints:');

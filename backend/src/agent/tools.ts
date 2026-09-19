@@ -113,6 +113,8 @@ export const toolDefinitions: ToolDefinition[] = [
           action: { type: 'string', enum: ['scale_up', 'scale_down', 'stop_idle_service', 'no_action'] },
           service_id: { type: 'string' },
           target_instances: { type: 'number' },
+          observed_version: { type: 'number', description: 'Observed cluster version for concurrency safety' },
+          observed_timestamp: { type: 'string', description: 'ISO timestamp when telemetry was observed for freshness validation' },
         },
         required: ['action', 'service_id'],
       },
@@ -129,6 +131,8 @@ export const toolDefinitions: ToolDefinition[] = [
           service_id: { type: 'string' },
           target_instances: { type: 'number' },
           reason: { type: 'string', description: 'Clear reason for scaling' },
+          observed_version: { type: 'number', description: 'Observed cluster version for concurrency safety' },
+          observed_timestamp: { type: 'string', description: 'ISO timestamp when telemetry was observed for freshness validation' },
         },
         required: ['service_id', 'target_instances'],
       },
@@ -231,6 +235,8 @@ export async function executeTool(name: string, args: any, runId?: string): Prom
         action: args.action,
         service_id: targetId,
         target_instances: args.target_instances,
+        observed_version: args.observed_version ?? service?.version,
+        observed_timestamp: args.observed_timestamp ?? service?.timestamp,
       });
 
       if (validation.allowed) {
@@ -255,7 +261,8 @@ export async function executeTool(name: string, args: any, runId?: string): Prom
         action: actionType,
         service_id: canonicalId,
         target_instances: targetInstances,
-        observed_version: service.version,
+        observed_version: args.observed_version ?? service.version,
+        observed_timestamp: args.observed_timestamp ?? service.timestamp,
       };
 
       broadcastEvent('safety_check_started', `Validating ${actionType} from ${service.instances} -> ${targetInstances} on ${canonicalId}`, actionProposal, runId);
