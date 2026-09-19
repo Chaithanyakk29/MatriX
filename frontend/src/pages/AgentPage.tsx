@@ -16,8 +16,9 @@ import {
   Terminal,
   Activity,
   Layers,
+  Server,
 } from 'lucide-react';
-import { AgentFinalReport, WsEvent } from '../types';
+import { AgentFinalReport, WsEvent, Service } from '../types';
 import { AgentLiveStepper, AgentStep } from '../components/AgentLiveStepper';
 import { RichChatCard } from '../components/RichChatCard';
 import { AgentEventChain } from '../components/AgentEventChain';
@@ -30,6 +31,7 @@ interface AgentPageProps {
   onClearEvents: () => void;
   onLoadScenarioAndRun?: (scenarioId: string, prompt: string) => Promise<void>;
   activeStepperStep: AgentStep;
+  services?: Service[];
 }
 
 interface MessageItem {
@@ -166,6 +168,7 @@ export const AgentPage: React.FC<AgentPageProps> = ({
   onClearEvents,
   onLoadScenarioAndRun,
   activeStepperStep,
+  services = [],
 }) => {
   const [inputPrompt, setInputPrompt] = useState('');
   const [messages, setMessages] = useState<MessageItem[]>([]);
@@ -486,6 +489,60 @@ export const AgentPage: React.FC<AgentPageProps> = ({
                             </button>
                           </div>
                         )}
+
+                        {/* GKE Cluster Fleet Servers Status (All Services in Cluster) */}
+                        {services && services.length > 0 && (
+                          <div className="mt-3.5 pt-3 border-t border-slate-100 space-y-2">
+                            <div className="flex items-center justify-between text-xs font-mono">
+                              <span className="flex items-center gap-1.5 font-bold text-slate-800 text-[11px]">
+                                <Server className="w-3.5 h-3.5 text-blue-600" />
+                                Cluster Fleet Servers ({services.length} Microservices)
+                              </span>
+                              <span className="text-[10px] text-slate-400">All GKE Nodes Monitored</span>
+                            </div>
+
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 pt-0.5">
+                              {services.map((svc) => {
+                                const isTarget = svc.service_id === msg.report?.problem?.service;
+                                return (
+                                  <div
+                                    key={svc.service_id}
+                                    className={`p-2 rounded-xl border text-xs transition-all ${
+                                      isTarget
+                                        ? 'bg-blue-50/70 border-blue-300 ring-1 ring-blue-200 shadow-2xs'
+                                        : 'bg-slate-50 border-slate-200/80 hover:bg-slate-100/60'
+                                    }`}
+                                  >
+                                    <div className="flex items-center justify-between">
+                                      <span className="font-bold text-slate-900 font-mono text-[11px] truncate">
+                                        {svc.name || svc.service_id}
+                                      </span>
+                                      <span
+                                        className={`w-2 h-2 rounded-full shrink-0 ${
+                                          svc.healthy ? 'bg-emerald-500' : 'bg-rose-500'
+                                        }`}
+                                        title={svc.healthy ? 'Healthy' : 'Degraded'}
+                                      />
+                                    </div>
+                                    <div className="flex items-center justify-between mt-1 text-[10px] font-mono text-slate-600">
+                                      <span className="font-semibold text-slate-800">{svc.instances} nodes</span>
+                                      <span className={svc.latency_ms > svc.max_latency_ms ? 'text-rose-600 font-bold' : ''}>
+                                        {svc.latency_ms}ms
+                                      </span>
+                                      <span>{svc.cpu_percent}% CPU</span>
+                                    </div>
+                                    {isTarget && (
+                                      <div className="mt-1 pt-1 border-t border-blue-200/60 flex items-center justify-between text-[9px] font-mono text-blue-700 font-bold">
+                                        <span>Target of Directive</span>
+                                        <span>{msg.report?.decision?.action || 'audited'}</span>
+                                      </div>
+                                    )}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -627,6 +684,7 @@ export const AgentPage: React.FC<AgentPageProps> = ({
                 report={activeDisplayReport}
                 events={events}
                 lastPrompt={lastUserMessage}
+                services={services}
               />
             </div>
 

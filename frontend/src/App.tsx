@@ -299,6 +299,7 @@ export default function App() {
                 onClearEvents={() => setEvents([])}
                 onLoadScenarioAndRun={handleLoadScenarioAndRun}
                 activeStepperStep={activeStepperStep}
+                services={services}
               />
             )}
 

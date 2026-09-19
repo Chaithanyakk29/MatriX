@@ -24,7 +24,7 @@ import {
   Cpu,
   Layers,
 } from 'lucide-react';
-import { AgentFinalReport, WsEvent } from '../types';
+import { AgentFinalReport, WsEvent, Service } from '../types';
 import { AgentStep } from './AgentLiveStepper';
 
 interface AgentEventChainProps {
@@ -33,6 +33,7 @@ interface AgentEventChainProps {
   report: AgentFinalReport | null;
   events: WsEvent[];
   lastPrompt?: string;
+  services?: Service[];
 }
 
 export const AgentEventChain: React.FC<AgentEventChainProps> = ({
@@ -41,8 +42,10 @@ export const AgentEventChain: React.FC<AgentEventChainProps> = ({
   report,
   events,
   lastPrompt,
+  services = [],
 }) => {
   const [activeTab, setActiveTab] = useState<'chain' | 'telemetry' | 'json' | 'logs'>('chain');
+  const [selectedServiceId, setSelectedServiceId] = useState<string>('all');
   const [copiedJson, setCopiedJson] = useState<boolean>(false);
   const [isLogExpanded, setIsLogExpanded] = useState<boolean>(false);
 
@@ -603,79 +606,194 @@ export const AgentEventChain: React.FC<AgentEventChainProps> = ({
       )}
 
       {/* =========================================================================
-          TAB 2: TELEMETRY SPECS
+          TAB 2: TELEMETRY SPECS (ALL CLUSTER SERVERS)
          ========================================================================= */}
       {activeTab === 'telemetry' && (
         <div className="space-y-3 text-xs">
-          {telemetry ? (
-            <div className="bg-white border border-slate-200 rounded-xl p-3.5 space-y-3">
-              <div className="flex items-center justify-between pb-2 border-b border-slate-100">
-                <div>
-                  <h4 className="font-bold text-slate-900 font-mono text-sm">{telemetry.service_id}</h4>
-                  <p className="text-[11px] text-slate-500">{telemetry.name || 'Backend Microservice'}</p>
-                </div>
-                <span className="px-2 py-0.5 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 font-mono text-[10px] font-bold">
-                  {telemetry.healthy ? 'Healthy' : 'Degraded'}
-                </span>
-              </div>
+          {/* Server Selector Bar */}
+          {services && services.length > 0 && (
+            <div className="flex items-center gap-1.5 overflow-x-auto pb-1.5 scrollbar-none">
+              <button
+                onClick={() => setSelectedServiceId('all')}
+                className={`px-2.5 py-1 rounded-lg text-[11px] font-mono font-medium transition-all shrink-0 cursor-pointer ${
+                  selectedServiceId === 'all'
+                    ? 'bg-slate-900 text-white shadow-2xs font-bold'
+                    : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                }`}
+              >
+                All Servers ({services.length})
+              </button>
+              {services.map((s) => (
+                <button
+                  key={s.service_id}
+                  onClick={() => setSelectedServiceId(s.service_id)}
+                  className={`px-2.5 py-1 rounded-lg text-[11px] font-mono transition-all shrink-0 cursor-pointer flex items-center gap-1 ${
+                    selectedServiceId === s.service_id
+                      ? 'bg-blue-600 text-white font-bold shadow-2xs'
+                      : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                  }`}
+                >
+                  <span
+                    className={`w-1.5 h-1.5 rounded-full ${
+                      s.healthy ? 'bg-emerald-400' : 'bg-rose-400'
+                    }`}
+                  />
+                  <span>{s.service_id}</span>
+                </button>
+              ))}
+            </div>
+          )}
 
-              <div className="grid grid-cols-2 gap-2.5 font-mono text-xs">
-                <div className="p-2 rounded-lg bg-slate-50 border border-slate-200/70">
-                  <span className="text-[10px] text-slate-400 uppercase block font-sans">CPU Utilization</span>
-                  <span className="text-sm font-bold text-slate-900">{telemetry.cpu_percent}%</span>
-                  <div className="w-full bg-slate-200 h-1.5 rounded-full mt-1.5 overflow-hidden">
-                    <div
-                      className={`h-full rounded-full ${
-                        telemetry.cpu_percent > 80 ? 'bg-rose-500' : telemetry.cpu_percent > 50 ? 'bg-amber-500' : 'bg-blue-600'
-                      }`}
-                      style={{ width: `${Math.min(100, telemetry.cpu_percent)}%` }}
-                    />
+          {/* If 'all' is selected or viewing fleet: display all servers */}
+          {selectedServiceId === 'all' && services && services.length > 0 ? (
+            <div className="space-y-3">
+              {services.map((svc) => {
+                const isTarget = svc.service_id === report?.problem?.service;
+                return (
+                  <div
+                    key={svc.service_id}
+                    className={`bg-white border rounded-xl p-3 space-y-2.5 transition-all shadow-2xs ${
+                      isTarget
+                        ? 'border-blue-300 ring-1 ring-blue-200 bg-blue-50/20'
+                        : 'border-slate-200 hover:border-slate-300'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between pb-1.5 border-b border-slate-100">
+                      <div className="flex items-center gap-2">
+                        <Server className={`w-4 h-4 ${isTarget ? 'text-blue-600' : 'text-slate-400'}`} />
+                        <div>
+                          <div className="flex items-center gap-1.5">
+                            <h4 className="font-bold text-slate-900 font-mono text-xs">{svc.service_id}</h4>
+                            {isTarget && (
+                              <span className="px-1.5 py-0.2 rounded bg-blue-100 text-blue-800 text-[9px] font-mono font-bold">
+                                Target Service
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-[10px] text-slate-500">{svc.name || 'Backend Microservice'}</p>
+                        </div>
+                      </div>
+                      <span className="px-2 py-0.5 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 font-mono text-[10px] font-bold">
+                        {svc.healthy ? 'Healthy' : 'Degraded'}
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-3 gap-2 font-mono text-[11px]">
+                      <div className="p-1.5 rounded-lg bg-slate-50 border border-slate-200/70">
+                        <span className="text-[9px] text-slate-400 uppercase block font-sans">Instances</span>
+                        <span className="font-bold text-slate-900">{svc.instances} nodes</span>
+                      </div>
+                      <div className="p-1.5 rounded-lg bg-slate-50 border border-slate-200/70">
+                        <span className="text-[9px] text-slate-400 uppercase block font-sans">Latency</span>
+                        <span className={`font-bold ${svc.latency_ms > svc.max_latency_ms ? 'text-rose-600' : 'text-slate-900'}`}>
+                          {svc.latency_ms}ms
+                        </span>
+                      </div>
+                      <div className="p-1.5 rounded-lg bg-slate-50 border border-slate-200/70">
+                        <span className="text-[9px] text-slate-400 uppercase block font-sans">CPU</span>
+                        <span className="font-bold text-slate-900">{svc.cpu_percent}%</span>
+                      </div>
+                      <div className="p-1.5 rounded-lg bg-slate-50 border border-slate-200/70">
+                        <span className="text-[9px] text-slate-400 uppercase block font-sans">Traffic</span>
+                        <span className="font-bold text-slate-900">{svc.requests_per_minute.toLocaleString()} RPM</span>
+                      </div>
+                      <div className="p-1.5 rounded-lg bg-slate-50 border border-slate-200/70">
+                        <span className="text-[9px] text-slate-400 uppercase block font-sans">Memory</span>
+                        <span className="font-bold text-slate-900">{svc.memory_percent}%</span>
+                      </div>
+                      <div className="p-1.5 rounded-lg bg-slate-50 border border-slate-200/70">
+                        <span className="text-[9px] text-slate-400 uppercase block font-sans">Cost</span>
+                        <span className="font-bold text-slate-900">${svc.cost_per_hour.toFixed(2)}/hr</span>
+                      </div>
+                    </div>
                   </div>
-                </div>
-
-                <div className="p-2 rounded-lg bg-slate-50 border border-slate-200/70">
-                  <span className="text-[10px] text-slate-400 uppercase block font-sans">Memory Usage</span>
-                  <span className="text-sm font-bold text-slate-900">{telemetry.memory_percent}%</span>
-                  <div className="w-full bg-slate-200 h-1.5 rounded-full mt-1.5 overflow-hidden">
-                    <div
-                      className="h-full rounded-full bg-indigo-600"
-                      style={{ width: `${Math.min(100, telemetry.memory_percent)}%` }}
-                    />
-                  </div>
-                </div>
-
-                <div className="p-2 rounded-lg bg-slate-50 border border-slate-200/70">
-                  <span className="text-[10px] text-slate-400 uppercase block font-sans">Traffic Throughput</span>
-                  <span className="text-sm font-bold text-slate-900">{telemetry.requests_per_minute.toLocaleString()} RPM</span>
-                </div>
-
-                <div className="p-2 rounded-lg bg-slate-50 border border-slate-200/70">
-                  <span className="text-[10px] text-slate-400 uppercase block font-sans">Response Latency</span>
-                  <span className={`text-sm font-bold ${telemetry.latency_ms > telemetry.max_latency_ms ? 'text-rose-600' : 'text-slate-900'}`}>
-                    {telemetry.latency_ms}ms
-                  </span>
-                  <span className="text-[10px] text-slate-400 ml-1">(Max SLA: {telemetry.max_latency_ms}ms)</span>
-                </div>
-
-                <div className="p-2 rounded-lg bg-slate-50 border border-slate-200/70">
-                  <span className="text-[10px] text-slate-400 uppercase block font-sans">Running Instances</span>
-                  <span className="text-sm font-bold text-slate-900">{telemetry.instances} nodes</span>
-                  <span className="text-[10px] text-slate-400 ml-1">(Min: {telemetry.min_instances}, Max: {telemetry.max_instances})</span>
-                </div>
-
-                <div className="p-2 rounded-lg bg-slate-50 border border-slate-200/70">
-                  <span className="text-[10px] text-slate-400 uppercase block font-sans">Hourly Spend</span>
-                  <span className="text-sm font-bold text-slate-900">${telemetry.cost_per_hour.toFixed(2)}/hr</span>
-                  <span className="text-[10px] text-slate-400 ml-1">(@ ${telemetry.cost_per_instance_hour.toFixed(2)}/node-hr)</span>
-                </div>
-              </div>
+                );
+              })}
             </div>
           ) : (
-            <div className="bg-slate-50 border border-slate-200 rounded-xl p-6 text-center text-slate-500">
-              <Server className="w-8 h-8 mx-auto text-slate-400 mb-2" />
-              <p className="font-medium">No service-specific telemetry snapshot available for this step.</p>
-              <p className="text-[11px] text-slate-400 mt-1">Run an agent directive or select a test scenario to inspect live metrics.</p>
-            </div>
+            /* Single Selected Server Card */
+            (() => {
+              const currentSvc =
+                (services && services.find((s) => s.service_id === selectedServiceId)) ||
+                (telemetry && telemetry.service_id === selectedServiceId ? telemetry : null) ||
+                telemetry ||
+                (services && services[0]);
+
+              if (!currentSvc) {
+                return (
+                  <div className="bg-slate-50 border border-slate-200 rounded-xl p-6 text-center text-slate-500">
+                    <Server className="w-8 h-8 mx-auto text-slate-400 mb-2" />
+                    <p className="font-medium">No service-specific telemetry snapshot available for this step.</p>
+                    <p className="text-[11px] text-slate-400 mt-1">Run an agent directive or select a test scenario to inspect live metrics.</p>
+                  </div>
+                );
+              }
+
+              return (
+                <div className="bg-white border border-slate-200 rounded-xl p-3.5 space-y-3">
+                  <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+                    <div>
+                      <h4 className="font-bold text-slate-900 font-mono text-sm">{currentSvc.service_id}</h4>
+                      <p className="text-[11px] text-slate-500">{currentSvc.name || 'Backend Microservice'}</p>
+                    </div>
+                    <span className="px-2 py-0.5 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 font-mono text-[10px] font-bold">
+                      {currentSvc.healthy ? 'Healthy' : 'Degraded'}
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2.5 font-mono text-xs">
+                    <div className="p-2 rounded-lg bg-slate-50 border border-slate-200/70">
+                      <span className="text-[10px] text-slate-400 uppercase block font-sans">CPU Utilization</span>
+                      <span className="text-sm font-bold text-slate-900">{currentSvc.cpu_percent}%</span>
+                      <div className="w-full bg-slate-200 h-1.5 rounded-full mt-1.5 overflow-hidden">
+                        <div
+                          className={`h-full rounded-full ${
+                            currentSvc.cpu_percent > 80 ? 'bg-rose-500' : currentSvc.cpu_percent > 50 ? 'bg-amber-500' : 'bg-blue-600'
+                          }`}
+                          style={{ width: `${Math.min(100, currentSvc.cpu_percent)}%` }}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="p-2 rounded-lg bg-slate-50 border border-slate-200/70">
+                      <span className="text-[10px] text-slate-400 uppercase block font-sans">Memory Usage</span>
+                      <span className="text-sm font-bold text-slate-900">{currentSvc.memory_percent}%</span>
+                      <div className="w-full bg-slate-200 h-1.5 rounded-full mt-1.5 overflow-hidden">
+                        <div
+                          className="h-full rounded-full bg-indigo-600"
+                          style={{ width: `${Math.min(100, currentSvc.memory_percent)}%` }}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="p-2 rounded-lg bg-slate-50 border border-slate-200/70">
+                      <span className="text-[10px] text-slate-400 uppercase block font-sans">Traffic Throughput</span>
+                      <span className="text-sm font-bold text-slate-900">{currentSvc.requests_per_minute.toLocaleString()} RPM</span>
+                    </div>
+
+                    <div className="p-2 rounded-lg bg-slate-50 border border-slate-200/70">
+                      <span className="text-[10px] text-slate-400 uppercase block font-sans">Response Latency</span>
+                      <span className={`text-sm font-bold ${currentSvc.latency_ms > currentSvc.max_latency_ms ? 'text-rose-600' : 'text-slate-900'}`}>
+                        {currentSvc.latency_ms}ms
+                      </span>
+                      <span className="text-[10px] text-slate-400 ml-1">(Max SLA: {currentSvc.max_latency_ms}ms)</span>
+                    </div>
+
+                    <div className="p-2 rounded-lg bg-slate-50 border border-slate-200/70">
+                      <span className="text-[10px] text-slate-400 uppercase block font-sans">Running Instances</span>
+                      <span className="text-sm font-bold text-slate-900">{currentSvc.instances} nodes</span>
+                      <span className="text-[10px] text-slate-400 ml-1">(Min: {currentSvc.min_instances}, Max: {currentSvc.max_instances})</span>
+                    </div>
+
+                    <div className="p-2 rounded-lg bg-slate-50 border border-slate-200/70">
+                      <span className="text-[10px] text-slate-400 uppercase block font-sans">Hourly Spend</span>
+                      <span className="text-sm font-bold text-slate-900">${currentSvc.cost_per_hour.toFixed(2)}/hr</span>
+                      <span className="text-[10px] text-slate-400 ml-1">(@ ${currentSvc.cost_per_instance_hour.toFixed(2)}/node-hr)</span>
+                    </div>
+                  </div>
+                </div>
+              );
+            })()
           )}
         </div>
       )}
