@@ -96,4 +96,15 @@ export const api = {
     const res = await client.post('/config/demo-mode', { enabled });
     return res.data.data;
   },
+
+  // Nodemailer Alerts
+  getAlertHistory: async (): Promise<any[]> => {
+    const res = await client.get('/alerts/history');
+    return res.data.data;
+  },
+
+  sendTestAlert: async (data?: any): Promise<any> => {
+    const res = await client.post('/alerts/test', data || {});
+    return res.data.data;
+  },
 };

@@ -17,6 +17,8 @@ import {
   Activity,
   Layers,
   Server,
+  Mail,
+  ExternalLink,
 } from 'lucide-react';
 import { AgentFinalReport, WsEvent, Service } from '../types';
 import { AgentLiveStepper, AgentStep } from '../components/AgentLiveStepper';
@@ -249,7 +251,8 @@ export const AgentPage: React.FC<AgentPageProps> = ({
       lastEvent &&
       (lastEvent.type === 'action_started' ||
         lastEvent.type === 'safety_check_started' ||
-        lastEvent.type === 'action_succeeded')
+        lastEvent.type === 'action_succeeded' ||
+        lastEvent.type === 'operator_alert_sent')
     ) {
       setIsPanelExpanded(true);
     }
@@ -543,6 +546,53 @@ export const AgentPage: React.FC<AgentPageProps> = ({
                             </div>
                           </div>
                         )}
+
+                        {/* Nodemailer Anomaly Alert Dispatched Notice */}
+                        {(() => {
+                          const alertEvent =
+                            msg.eventsSnapshot?.find((e) => e.type === 'operator_alert_sent') ||
+                            events.find(
+                              (e) =>
+                                e.type === 'operator_alert_sent' &&
+                                (e.data?.serviceId === msg.report?.problem?.service ||
+                                  e.data?.service_id === msg.report?.problem?.service)
+                            );
+
+                          if (!alertEvent) return null;
+
+                          return (
+                            <div className="mt-3 p-2.5 rounded-xl bg-rose-50 border border-rose-200/80 flex items-center justify-between gap-2.5 text-xs">
+                              <div className="flex items-center gap-2 min-w-0">
+                                <div className="w-6 h-6 rounded-lg bg-rose-100 flex items-center justify-center text-rose-600 shrink-0">
+                                  <Mail className="w-3.5 h-3.5" />
+                                </div>
+                                <div className="truncate">
+                                  <span className="font-semibold text-rose-950">
+                                    Nodemailer Alert Sent to{' '}
+                                    <span className="font-mono text-rose-700 font-bold">
+                                      {alertEvent.data?.recipient || 'sre-operator@atleos.com'}
+                                    </span>
+                                  </span>
+                                  <p className="text-[10px] text-rose-600 truncate">
+                                    {alertEvent.data?.subject || 'Anomaly dispatch notification'}
+                                  </p>
+                                </div>
+                              </div>
+
+                              {alertEvent.data?.previewUrl && (
+                                <a
+                                  href={alertEvent.data.previewUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-white hover:bg-rose-100/60 border border-rose-300 text-rose-700 hover:text-rose-900 text-[11px] font-semibold transition-colors shrink-0 shadow-2xs"
+                                >
+                                  <span>Preview Email</span>
+                                  <ExternalLink className="w-3 h-3" />
+                                </a>
+                              )}
+                            </div>
+                          );
+                        })()}
                       </div>
                     </div>
                   </div>
