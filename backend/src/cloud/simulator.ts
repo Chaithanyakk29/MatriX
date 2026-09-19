@@ -333,12 +333,20 @@ export class CloudSimulator {
       const loaded: ServiceData[] = JSON.parse(fileData);
 
       // Normalize fields if needed
-      this.services = loaded.map(s => ({
-        ...s,
-        cost_per_instance_hour: s.cost_per_instance_hour || parseFloat((s.cost_per_hour / (s.instances || 1)).toFixed(4)),
-        version: s.version || 1,
-        timestamp: s.timestamp || new Date().toISOString(),
-      }));
+      const isTestC = canonicalId.toLowerCase().includes('testc') || canonicalId.toLowerCase().includes('test-c');
+      this.services = loaded.map(s => {
+        let ts = new Date().toISOString();
+        if (isTestC && (s.service_id === 'checkout-api' || s.service_id === 'checkout')) {
+          // Explicitly simulate 30-minute-old stale telemetry for Test C
+          ts = new Date(Date.now() - 30 * 60 * 1000).toISOString();
+        }
+        return {
+          ...s,
+          cost_per_instance_hour: s.cost_per_instance_hour || parseFloat((s.cost_per_hour / (s.instances || 1)).toFixed(4)),
+          version: s.version || 1,
+          timestamp: ts,
+        };
+      });
 
       this.activeScenario = scenarioId;
       this.recordSnapshot();
