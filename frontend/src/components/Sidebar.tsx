@@ -44,7 +44,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </div>
           <div>
             <div className="font-bold text-slate-900 tracking-tight text-sm">CloudGuard AI</div>
-            <div className="text-[10px] text-slate-500 font-medium">NCR Atleos SRE Mission Control</div>
+            <div className="text-[10px] text-slate-500 font-medium">Autonomous Cloud Optimization</div>
           </div>
         </div>
 
@@ -105,7 +105,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         </div>
 
         <div className="text-[10px] text-slate-400 text-center font-mono py-1">
-          NCR Atleos SRE v2.5 • Mission Control
+          CloudGuard AI v2.5
         </div>
       </div>
     </aside>

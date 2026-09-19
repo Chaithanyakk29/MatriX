@@ -365,7 +365,7 @@ export const AgentEventChain: React.FC<AgentEventChainProps> = ({
                         </span>
                       </div>
                       <div className="p-1.5 rounded bg-slate-50 border border-slate-200">
-                        <span className="text-[9px] text-slate-400 block uppercase">Nodes</span>
+                        <span className="text-[9px] text-slate-400 block uppercase">Instances</span>
                         <span className="font-bold text-slate-800">{telemetry.instances} ({telemetry.min_instances}–{telemetry.max_instances})</span>
                       </div>
                       <div className="p-1.5 rounded bg-slate-50 border border-slate-200">
@@ -450,7 +450,7 @@ export const AgentEventChain: React.FC<AgentEventChainProps> = ({
                 </div>
               ) : (
                 <p className="text-xs text-slate-400">
-                  Evaluates 8+ deterministic safety guardrails: SLA limits, min/max node boundaries, and traffic freshness.
+                  Evaluates 8+ deterministic safety guardrails: SLA limits, min/max instance boundaries, and traffic freshness.
                 </p>
               )}
             </div>
@@ -514,7 +514,7 @@ export const AgentEventChain: React.FC<AgentEventChainProps> = ({
                     <span className="font-mono font-bold text-blue-800 uppercase">
                       {report.decision.action === 'no_action'
                         ? 'No Mutation (State Held)'
-                        : `${report.decision.action} (${report.decision.from_instances} → ${report.decision.to_instances} Nodes)`}
+                        : `${report.decision.action} (${report.decision.from_instances} → ${report.decision.to_instances} Instances)`}
                     </span>
                   </div>
 
@@ -589,7 +589,7 @@ export const AgentEventChain: React.FC<AgentEventChainProps> = ({
                     • Latency SLA Target: <span className="font-mono font-bold text-blue-700">{report.verification.latency_ms || 169}ms</span> (Safe within target)
                   </p>
                   <p>
-                    • Verified Running Nodes: <span className="font-mono font-bold text-slate-800">{report.verification.actual_instances ?? report.decision.to_instances} instances</span>
+                    • Verified Running Instances: <span className="font-mono font-bold text-slate-800">{report.verification.actual_instances ?? report.decision.to_instances} instances</span>
                   </p>
                   <p>
                     • Availability Status: <span className="font-mono font-bold text-emerald-700">100% Operational (0% errors)</span>
@@ -681,7 +681,7 @@ export const AgentEventChain: React.FC<AgentEventChainProps> = ({
                     <div className="grid grid-cols-3 gap-2 font-mono text-[11px]">
                       <div className="p-1.5 rounded-lg bg-slate-50 border border-slate-200/70">
                         <span className="text-[9px] text-slate-400 uppercase block font-sans">Instances</span>
-                        <span className="font-bold text-slate-900">{svc.instances} nodes</span>
+                        <span className="font-bold text-slate-900">{svc.instances} instances</span>
                       </div>
                       <div className="p-1.5 rounded-lg bg-slate-50 border border-slate-200/70">
                         <span className="text-[9px] text-slate-400 uppercase block font-sans">Latency</span>
@@ -781,14 +781,14 @@ export const AgentEventChain: React.FC<AgentEventChainProps> = ({
 
                     <div className="p-2 rounded-lg bg-slate-50 border border-slate-200/70">
                       <span className="text-[10px] text-slate-400 uppercase block font-sans">Running Instances</span>
-                      <span className="text-sm font-bold text-slate-900">{currentSvc.instances} nodes</span>
+                      <span className="text-sm font-bold text-slate-900">{currentSvc.instances} instances</span>
                       <span className="text-[10px] text-slate-400 ml-1">(Min: {currentSvc.min_instances}, Max: {currentSvc.max_instances})</span>
                     </div>
 
                     <div className="p-2 rounded-lg bg-slate-50 border border-slate-200/70">
                       <span className="text-[10px] text-slate-400 uppercase block font-sans">Hourly Spend</span>
                       <span className="text-sm font-bold text-slate-900">${currentSvc.cost_per_hour.toFixed(2)}/hr</span>
-                      <span className="text-[10px] text-slate-400 ml-1">(@ ${currentSvc.cost_per_instance_hour.toFixed(2)}/node-hr)</span>
+                      <span className="text-[10px] text-slate-400 ml-1">(@ ${currentSvc.cost_per_instance_hour.toFixed(2)}/inst-hr)</span>
                     </div>
                   </div>
                 </div>

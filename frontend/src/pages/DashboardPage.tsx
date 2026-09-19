@@ -2,6 +2,7 @@ import React from 'react';
 import {
   DollarSign,
   TrendingDown,
+  TrendingUp,
   Server,
   CheckCircle2,
   ArrowRight,
@@ -9,9 +10,11 @@ import {
   Zap,
   Activity,
   AlertTriangle,
+  ShieldAlert,
   Shield,
   Layers,
   Boxes,
+  Bot,
 } from 'lucide-react';
 import {
   AreaChart,
@@ -61,6 +64,101 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
 
   return (
     <div className="space-y-6">
+      {/* Interactive SRE Chaos & Scenario Injector Toolbar (For Hackathon Judges) */}
+      <div className="bg-white border border-slate-200/90 rounded-2xl p-4 shadow-2xs space-y-2.5">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+            <span className="text-xs font-bold text-slate-900 uppercase tracking-wider font-mono">
+              SRE Benchmark & Scenario Injector
+            </span>
+            <span className="text-[11px] text-slate-500 font-mono hidden md:inline">
+              — One-Click Autonomous Agent Evaluation for Judges
+            </span>
+          </div>
+          <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-slate-100 border border-slate-200 text-slate-600 font-medium">
+            Autonomous StateGraph Active
+          </span>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2.5 pt-0.5">
+          <button
+            onClick={() => onQuickRun('Review the current services and reduce unnecessary cost without breaking the latency or availability requirements.')}
+            className="flex items-center gap-2.5 p-2.5 rounded-xl bg-slate-50 hover:bg-emerald-50/70 border border-slate-200/80 hover:border-emerald-300 transition-all text-left group cursor-pointer"
+          >
+            <div className="w-7 h-7 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0 border border-emerald-200 font-bold text-xs font-mono">
+              A
+            </div>
+            <div className="min-w-0">
+              <div className="text-xs font-bold text-slate-900 group-hover:text-emerald-800 truncate">
+                Test A: Cost Opt
+              </div>
+              <div className="text-[10px] text-slate-500 truncate font-mono">reports-worker 4→1</div>
+            </div>
+          </button>
+
+          <button
+            onClick={() => onQuickRun('Orders traffic is increasing. Keep the service within its latency target.')}
+            className="flex items-center gap-2.5 p-2.5 rounded-xl bg-slate-50 hover:bg-blue-50/70 border border-slate-200/80 hover:border-blue-300 transition-all text-left group cursor-pointer"
+          >
+            <div className="w-7 h-7 rounded-lg bg-blue-100 text-blue-700 flex items-center justify-center shrink-0 border border-blue-200 font-bold text-xs font-mono">
+              B
+            </div>
+            <div className="min-w-0">
+              <div className="text-xs font-bold text-slate-900 group-hover:text-blue-800 truncate">
+                Test B: SLA Defense
+              </div>
+              <div className="text-[10px] text-slate-500 truncate font-mono">orders-api surge (5)</div>
+            </div>
+          </button>
+
+          <button
+            onClick={() => onQuickRun('Reduce cost if it is safe.')}
+            className="flex items-center gap-2.5 p-2.5 rounded-xl bg-slate-50 hover:bg-amber-50/70 border border-slate-200/80 hover:border-amber-300 transition-all text-left group cursor-pointer"
+          >
+            <div className="w-7 h-7 rounded-lg bg-amber-100 text-amber-700 flex items-center justify-center shrink-0 border border-amber-200 font-bold text-xs font-mono">
+              C
+            </div>
+            <div className="min-w-0">
+              <div className="text-xs font-bold text-slate-900 group-hover:text-amber-800 truncate">
+                Test C: Stale Trap
+              </div>
+              <div className="text-[10px] text-slate-500 truncate font-mono">checkout-api (reconcile)</div>
+            </div>
+          </button>
+
+          <button
+            onClick={() => onQuickRun('Scale the payment service only if the current state requires it.')}
+            className="flex items-center gap-2.5 p-2.5 rounded-xl bg-slate-50 hover:bg-rose-50/70 border border-slate-200/80 hover:border-rose-300 transition-all text-left group cursor-pointer"
+          >
+            <div className="w-7 h-7 rounded-lg bg-rose-100 text-rose-700 flex items-center justify-center shrink-0 border border-rose-200 font-bold text-xs font-mono">
+              D
+            </div>
+            <div className="min-w-0">
+              <div className="text-xs font-bold text-slate-900 group-hover:text-rose-800 truncate">
+                Test D: Cloud Fault
+              </div>
+              <div className="text-[10px] text-slate-500 truncate font-mono">payment-api (quota/fallback)</div>
+            </div>
+          </button>
+
+          <button
+            onClick={() => onQuickRun('Why is our cloud bill 37% higher than expected? Investigate root cause.')}
+            className="flex items-center gap-2.5 p-2.5 rounded-xl bg-slate-50 hover:bg-purple-50/70 border border-slate-200/80 hover:border-purple-300 transition-all text-left group cursor-pointer"
+          >
+            <div className="w-7 h-7 rounded-lg bg-purple-100 text-purple-700 flex items-center justify-center shrink-0 border border-purple-200 font-bold text-xs font-mono">
+              37%
+            </div>
+            <div className="min-w-0">
+              <div className="text-xs font-bold text-slate-900 group-hover:text-purple-800 truncate">
+                Monday 37% Alert
+              </div>
+              <div className="text-[10px] text-slate-500 truncate font-mono">Full Fleet Audit</div>
+            </div>
+          </button>
+        </div>
+      </div>
+
       {/* Top Metrics Row: 4 Clean Enterprise KPI Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {/* Hourly Cloud Spend */}
@@ -112,11 +210,11 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
           </div>
         </div>
 
-        {/* Provisioned Fleet Nodes */}
+        {/* Provisioned Fleet Instances */}
         <div className="bg-white p-5 rounded-2xl border border-slate-200/90 shadow-2xs space-y-3">
           <div className="flex items-center justify-between">
             <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">
-              Provisioned Nodes
+              Provisioned Instances
             </span>
             <div className="w-7 h-7 rounded-lg bg-blue-50 border border-blue-200 flex items-center justify-center text-blue-600">
               <Server className="w-4 h-4" />
@@ -160,36 +258,42 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
         </div>
       </div>
 
-      {/* GKE Cluster Architecture Status Banner */}
-      <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-indigo-950 p-4 rounded-2xl border border-slate-700 text-white flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-sm">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-blue-500/20 border border-blue-400/30 flex items-center justify-center text-blue-400 shrink-0">
-            <Boxes className="w-5 h-5" />
+      {/* Cluster Telemetry & Fleet Status Card */}
+      <div className="bg-white p-5 rounded-2xl border border-slate-200/90 shadow-2xs flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="flex items-start gap-3.5">
+          <div className="w-10 h-10 rounded-xl bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-700 shrink-0">
+            <Server className="w-5 h-5" />
           </div>
-          <div>
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="text-xs font-bold text-blue-300">Google Cloud Platform</span>
-              <span className="text-slate-400">•</span>
-              <span className="text-xs font-mono text-slate-300">GKE: gke-prod-uscentral1-atleos</span>
-              <span className="text-slate-400">•</span>
-              <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
-                Kubernetes v1.29
+          <div className="space-y-1">
+            <div className="flex items-center gap-2">
+              <span className="font-bold text-sm text-slate-900">Monitored Cloud Infrastructure</span>
+              <span className="text-[11px] font-mono px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200 font-semibold">
+                10 Safety Invariants Active
               </span>
             </div>
-            <p className="text-xs text-slate-300 mt-0.5">
-              4 Microservice Deployments • {totalInstances} Active Pods • Managed autonomously by CloudGuard SRE Controller
+            <p className="text-xs text-slate-600 leading-relaxed">
+              Real-time telemetry across {totalServices} active microservices and {totalInstances} provisioned instances with deterministic SLA safety verification.
             </p>
           </div>
         </div>
 
-        <button
-          onClick={() => onNavigateTab('services')}
-          className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold transition-all shrink-0 cursor-pointer shadow-sm hover:shadow"
-        >
-          <Boxes className="w-3.5 h-3.5" />
-          <span>Inspect GKE Pod Topology</span>
-          <ArrowRight className="w-3.5 h-3.5" />
-        </button>
+        <div className="flex items-center gap-2.5 shrink-0">
+          <button
+            onClick={() => onNavigateTab('services')}
+            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200/80 text-slate-800 text-xs font-semibold border border-slate-200 transition-colors cursor-pointer"
+          >
+            <Server className="w-3.5 h-3.5 text-slate-600" />
+            <span>Server View</span>
+          </button>
+          <button
+            onClick={() => onNavigateTab('agent')}
+            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold transition-all shadow-xs cursor-pointer"
+          >
+            <Bot className="w-3.5 h-3.5 text-blue-300" />
+            <span>Agent Console</span>
+            <ArrowRight className="w-3.5 h-3.5 text-slate-400" />
+          </button>
+        </div>
       </div>
 
       {/* What-If SLA Risk Slider */}
@@ -282,7 +386,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
               <p className="text-[11px] text-slate-500">Provisioned server instances vs aggregate CPU load</p>
             </div>
             <span className="text-[10px] font-mono font-medium px-2 py-0.5 rounded bg-slate-100 text-slate-600 border border-slate-200">
-              Nodes / %
+              Instances / %
             </span>
           </div>
 

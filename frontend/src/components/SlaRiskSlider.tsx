@@ -27,7 +27,7 @@ export const SlaRiskSlider: React.FC<SlaRiskSliderProps> = ({ value, onChange })
     {
       id: 2,
       label: 'Max Availability / Zero Risk',
-      desc: 'Prioritizes SLA uptime; preserves redundant nodes under all traffic conditions.',
+      desc: 'Prioritizes SLA uptime; preserves redundant instances under all traffic conditions.',
       color: 'text-emerald-700',
       badge: 'Highest Uptime',
       badgeBg: 'bg-emerald-50 text-emerald-800 border-emerald-200',

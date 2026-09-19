@@ -1,9 +1,10 @@
 import { simulator } from '../cloud/simulator';
 
 export interface ActionProposal {
-  action: 'scale_up' | 'scale_down' | 'stop_idle_service' | 'no_action';
+  action: 'scale_up' | 'scale_down' | 'stop_idle_service' | 'resize' | 'delay_batch_workload' | 'no_action';
   service_id: string;
   target_instances?: number;
+  instance_type?: string;
   observed_version?: number;
   observed_timestamp?: string;
 }
@@ -43,12 +44,12 @@ export class SafetyEngine {
     // CONSTRAINT 9: Action Validity / Schema Constraint
     // The proposed action must be valid: supported action, valid schema, no malformed requests.
     // =========================================================================
-    const validActions = ['scale_up', 'scale_down', 'stop_idle_service', 'no_action'];
+    const validActions = ['scale_up', 'scale_down', 'stop_idle_service', 'resize', 'delay_batch_workload', 'no_action'];
     if (!proposal.action || !validActions.includes(proposal.action)) {
       checks.push({
         name: 'Action Validity & Schema Constraint',
         passed: false,
-        message: `Unsupported action type: '${proposal.action}'. Allowed actions: scale_up, scale_down, stop_idle_service, no_action.`,
+        message: `Unsupported action type: '${proposal.action}'. Allowed actions: scale_up, scale_down, stop_idle_service, resize, delay_batch_workload, no_action.`,
       });
       return {
         allowed: false,
@@ -193,6 +194,48 @@ export class SafetyEngine {
       passed: true,
       message: 'Telemetry metrics are fresh, verified, and consistent with real-time network stream.',
     });
+
+    // =========================================================================
+    // ACTION: resize (Vertical Rightsizing)
+    // =========================================================================
+    if (proposal.action === 'resize') {
+      const allowedFlavors = ['e2-micro', 'e2-small', 'e2-medium', 'e2-standard-2', 'e2-standard-4', 'c2-standard-4'];
+      const targetFlavor = proposal.instance_type || 'e2-standard-2';
+      if (!allowedFlavors.includes(targetFlavor)) {
+        checks.push({
+          name: 'Instance Sizing Validation',
+          passed: false,
+          message: `Target instance flavor '${targetFlavor}' is not in approved enterprise catalog.`,
+        });
+        return { allowed: false, checks, reason: `Unapproved instance flavor ${targetFlavor}` };
+      }
+      checks.push({
+        name: 'Vertical Rightsizing Invariant',
+        passed: true,
+        message: `Vertical rightsizing to ${targetFlavor} approved. Instance redundancy preserved at ${service.instances} instances.`,
+      });
+      return { allowed: true, checks };
+    }
+
+    // =========================================================================
+    // ACTION: delay_batch_workload (Batch Workload Deferral)
+    // =========================================================================
+    if (proposal.action === 'delay_batch_workload') {
+      if (service.requests_per_minute > 50 && service.service_id !== 'reports-worker') {
+        checks.push({
+          name: 'Batch Workload Invariant',
+          passed: false,
+          message: `Cannot defer real-time customer-facing API '${service.service_id}' with active traffic (${service.requests_per_minute} RPM).`,
+        });
+        return { allowed: false, checks, reason: 'Cannot defer real-time transaction API' };
+      }
+      checks.push({
+        name: 'Batch Workload Invariant',
+        passed: true,
+        message: `Batch deferral approved for '${service.service_id}'. Compute spend reduced by 70% during deferral window.`,
+      });
+      return { allowed: true, checks };
+    }
 
     // =========================================================================
     // SCALING SPECIFIC CONSTRAINTS (scale_up, scale_down)

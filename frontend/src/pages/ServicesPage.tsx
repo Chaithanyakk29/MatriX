@@ -55,13 +55,13 @@ export const ServicesPage: React.FC<ServicesPageProps> = ({
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-white p-3 rounded-2xl border border-slate-200 shadow-2xs">
         <div className="flex items-center gap-2">
           <div className="w-8 h-8 rounded-xl bg-blue-50 border border-blue-200 flex items-center justify-center text-blue-600">
-            <Boxes className="w-4 h-4" />
+            <Server className="w-4 h-4" />
           </div>
           <div>
             <h2 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
-              Fleet Architecture & Kubernetes Topology
+              Cloud Services & Infrastructure
             </h2>
-            <p className="text-[11px] text-slate-500">Google Cloud (GCP) • GKE Cluster: gke-prod-uscentral1-atleos</p>
+            <p className="text-[11px] text-slate-500">Active microservices and instance replica distributions</p>
           </div>
         </div>
 
@@ -75,8 +75,8 @@ export const ServicesPage: React.FC<ServicesPageProps> = ({
                   : 'text-slate-600 hover:text-slate-900'
               }`}
             >
-              <Boxes className="w-3.5 h-3.5" />
-              <span>GKE Pod Topology</span>
+              <Server className="w-3.5 h-3.5" />
+              <span>Server</span>
             </button>
             <button
               onClick={() => setViewMode('table')}
@@ -87,7 +87,7 @@ export const ServicesPage: React.FC<ServicesPageProps> = ({
               }`}
             >
               <Table className="w-3.5 h-3.5" />
-              <span>Fleet Table</span>
+              <span>Table</span>
             </button>
           </div>
 
@@ -282,7 +282,7 @@ export const ServicesPage: React.FC<ServicesPageProps> = ({
               <div className="p-3 bg-slate-50 rounded-md border border-slate-100">
                 <span className="text-slate-500 text-[11px]">Cost / Hour</span>
                 <p className="text-base font-semibold text-slate-900 mt-0.5 font-mono">${selectedService.cost_per_hour.toFixed(2)}</p>
-                <span className="text-[10px] text-slate-400">${selectedService.cost_per_instance_hour.toFixed(2)} / node</span>
+                <span className="text-[10px] text-slate-400">${selectedService.cost_per_instance_hour.toFixed(2)} / instance</span>
               </div>
 
               <div className="p-3 bg-slate-50 rounded-md border border-slate-100">

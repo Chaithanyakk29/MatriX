@@ -234,6 +234,96 @@ export class CloudSimulator {
     return { previousInstances: prevInstances, finalInstances: targetInstances };
   }
 
+  public applyResize(serviceId: string, targetType: string): { previousType: string; finalType: string; newCostPerHour: number; savedPerHour: number } {
+    const s = this.getService(serviceId);
+    if (!s) throw new Error(`Service ${serviceId} not found`);
+
+    const typeCosts: Record<string, number> = {
+      'e2-micro': 0.45,
+      'e2-small': 0.90,
+      'e2-medium': 1.75,
+      'e2-standard-2': 1.75,
+      'e2-standard-4': 3.50,
+      'c2-standard-4': 4.20,
+    };
+
+    const newUnitCost = typeCosts[targetType] || 1.75;
+    const prevType = (s as any).instance_type || 'e2-standard-4';
+    const previousCost = s.cost_per_hour;
+
+    (s as any).instance_type = targetType;
+    s.cost_per_instance_hour = newUnitCost;
+    s.cost_per_hour = parseFloat((newUnitCost * s.instances).toFixed(2));
+    s.version += 1;
+    s.timestamp = new Date().toISOString();
+
+    const savedPerHour = Math.max(0, parseFloat((previousCost - s.cost_per_hour).toFixed(2)));
+
+    AuditRepository.saveEvent({
+      eventId: `evt-${Date.now()}`,
+      serviceId,
+      type: 'RESIZE_EVENT',
+      severity: 'info',
+      message: `Vertically rightsized ${serviceId} from ${prevType} to ${targetType}. Unit cost: $${newUnitCost}/node-hr. New spend: $${s.cost_per_hour}/hr (Saved $${savedPerHour}/hr).`,
+      timestamp: s.timestamp,
+    });
+
+    this.recordSnapshot();
+    return { previousType: prevType, finalType: targetType, newCostPerHour: s.cost_per_hour, savedPerHour };
+  }
+
+  public delayBatchWorkload(serviceId: string): { status: string; savedPerHour: number } {
+    const s = this.getService(serviceId);
+    if (!s) throw new Error(`Service ${serviceId} not found`);
+    if (s.requests_per_minute > 0 && s.service_id !== 'reports-worker') {
+      throw new Error('cannot_delay_realtime_api');
+    }
+
+    const previousCost = s.cost_per_hour;
+    (s as any).workload_status = 'deferred';
+    // Deferring non-critical batch workload reduces compute spend by 70%
+    s.cost_per_hour = parseFloat((s.cost_per_hour * 0.30).toFixed(2));
+    s.cpu_percent = Math.max(2, Math.round(s.cpu_percent * 0.2));
+    s.version += 1;
+    s.timestamp = new Date().toISOString();
+
+    const savings = parseFloat((previousCost - s.cost_per_hour).toFixed(2));
+
+    AuditRepository.saveEvent({
+      eventId: `evt-${Date.now()}`,
+      serviceId,
+      type: 'BATCH_DEFERRED',
+      severity: 'info',
+      message: `Deferred batch workload on ${serviceId} to off-peak hours. Cost reduced by $${savings}/hr (-70%).`,
+      timestamp: s.timestamp,
+    });
+
+    this.recordSnapshot();
+    return { status: 'deferred', savedPerHour: savings };
+  }
+
+  public rollbackService(serviceId: string, targetInstances: number): { rolledBackTo: number; status: string } {
+    const s = this.getService(serviceId);
+    if (!s) throw new Error(`Service ${serviceId} not found`);
+
+    s.instances = targetInstances;
+    s.cost_per_hour = parseFloat((s.cost_per_instance_hour * targetInstances).toFixed(2));
+    s.version += 1;
+    s.timestamp = new Date().toISOString();
+
+    AuditRepository.saveEvent({
+      eventId: `evt-${Date.now()}`,
+      serviceId,
+      type: 'ROLLBACK_EVENT',
+      severity: 'warning',
+      message: `Autonomous circuit breaker triggered instant rollback on ${serviceId} to ${targetInstances} instances to safeguard SLA.`,
+      timestamp: s.timestamp,
+    });
+
+    this.recordSnapshot();
+    return { rolledBackTo: targetInstances, status: 'rollback_completed' };
+  }
+
   public stopService(serviceId: string): boolean {
     const s = this.getService(serviceId);
     if (!s) return false;

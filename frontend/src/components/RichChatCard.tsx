@@ -59,7 +59,7 @@ export const RichChatCard: React.FC<RichChatCardProps> = ({ report }) => {
           <span className="font-semibold text-xs text-blue-700 uppercase block mt-0.5">
             {report.decision.action === 'no_action'
               ? 'Hold State'
-              : `${report.decision.from_instances} → ${report.decision.to_instances} Nodes`}
+              : `${report.decision.from_instances} → ${report.decision.to_instances} Instances`}
           </span>
         </div>
 

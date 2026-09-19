@@ -27,7 +27,7 @@ export const ScenariosPage: React.FC<ScenariosPageProps> = ({
     },
     testA: {
       badge: 'Test A: Cost Optimization',
-      expectedVerdict: 'reports-worker is idle (0 RPM); safely downscale 4 → 1 nodes.',
+      expectedVerdict: 'reports-worker is idle (0 RPM); safely downscale 4 → 1 instances.',
       prompt:
         'Review the current services and reduce unnecessary cost without breaking the latency or availability requirements.',
     },
