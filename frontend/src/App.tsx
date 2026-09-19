@@ -272,7 +272,17 @@ export default function App() {
             )}
 
             {activeTab === 'services' && (
-              <ServicesPage services={services} onRefresh={refreshAllData} />
+              <ServicesPage
+                services={services}
+                onRefresh={refreshAllData}
+                onLoadScenario={handleLoadScenario}
+                onResetScenarios={handleResetScenarios}
+                onNavigateToAgent={(p) => {
+                  setActiveTab('agent');
+                  handleRunAgent(p);
+                }}
+                activeScenarioId={summary?.activeScenario || 'default'}
+              />
             )}
 
             {activeTab === 'agent' && (

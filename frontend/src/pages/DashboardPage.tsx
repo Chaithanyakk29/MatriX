@@ -11,6 +11,7 @@ import {
   AlertTriangle,
   Shield,
   Layers,
+  Boxes,
 } from 'lucide-react';
 import {
   AreaChart,
@@ -157,6 +158,38 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
             </div>
           </div>
         </div>
+      </div>
+
+      {/* GKE Cluster Architecture Status Banner */}
+      <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-indigo-950 p-4 rounded-2xl border border-slate-700 text-white flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-sm">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-blue-500/20 border border-blue-400/30 flex items-center justify-center text-blue-400 shrink-0">
+            <Boxes className="w-5 h-5" />
+          </div>
+          <div>
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-xs font-bold text-blue-300">Google Cloud Platform</span>
+              <span className="text-slate-400">•</span>
+              <span className="text-xs font-mono text-slate-300">GKE: gke-prod-uscentral1-atleos</span>
+              <span className="text-slate-400">•</span>
+              <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                Kubernetes v1.29
+              </span>
+            </div>
+            <p className="text-xs text-slate-300 mt-0.5">
+              4 Microservice Deployments • {totalInstances} Active Pods • Managed autonomously by CloudGuard SRE Controller
+            </p>
+          </div>
+        </div>
+
+        <button
+          onClick={() => onNavigateTab('services')}
+          className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold transition-all shrink-0 cursor-pointer shadow-sm hover:shadow"
+        >
+          <Boxes className="w-3.5 h-3.5" />
+          <span>Inspect GKE Pod Topology</span>
+          <ArrowRight className="w-3.5 h-3.5" />
+        </button>
       </div>
 
       {/* What-If SLA Risk Slider */}

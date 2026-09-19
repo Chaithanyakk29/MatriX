@@ -1,14 +1,27 @@
 import React, { useState } from 'react';
-import { Search, RefreshCw, Server, CheckCircle2, XCircle, AlertCircle } from 'lucide-react';
+import { Search, RefreshCw, Server, CheckCircle2, XCircle, AlertCircle, Boxes, Table } from 'lucide-react';
 import { Service } from '../types';
 import { api } from '../services/api';
+import { GkePodTopology } from '../components/GkePodTopology';
 
 interface ServicesPageProps {
   services: Service[];
   onRefresh: () => void;
+  onLoadScenario?: (scenarioId: string) => Promise<void>;
+  onResetScenarios?: () => Promise<void>;
+  onNavigateToAgent?: (prompt: string) => void;
+  activeScenarioId?: string;
 }
 
-export const ServicesPage: React.FC<ServicesPageProps> = ({ services, onRefresh }) => {
+export const ServicesPage: React.FC<ServicesPageProps> = ({
+  services,
+  onRefresh,
+  onLoadScenario,
+  onResetScenarios,
+  onNavigateToAgent,
+  activeScenarioId = 'default',
+}) => {
+  const [viewMode, setViewMode] = useState<'topology' | 'table'>('topology');
   const [searchTerm, setSearchTerm] = useState('');
   const [filterHealth, setFilterHealth] = useState<'all' | 'healthy' | 'unhealthy'>('all');
   const [selectedService, setSelectedService] = useState<Service | null>(null);
@@ -38,7 +51,68 @@ export const ServicesPage: React.FC<ServicesPageProps> = ({ services, onRefresh 
 
   return (
     <div className="space-y-6">
-      {/* Controls Bar */}
+      {/* Top View Selector Bar */}
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-white p-3 rounded-2xl border border-slate-200 shadow-2xs">
+        <div className="flex items-center gap-2">
+          <div className="w-8 h-8 rounded-xl bg-blue-50 border border-blue-200 flex items-center justify-center text-blue-600">
+            <Boxes className="w-4 h-4" />
+          </div>
+          <div>
+            <h2 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
+              Fleet Architecture & Kubernetes Topology
+            </h2>
+            <p className="text-[11px] text-slate-500">Google Cloud (GCP) • GKE Cluster: gke-prod-uscentral1-atleos</p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <div className="flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200">
+            <button
+              onClick={() => setViewMode('topology')}
+              className={`flex items-center gap-1.5 px-3 py-1 text-xs font-semibold rounded-lg transition-all cursor-pointer ${
+                viewMode === 'topology'
+                  ? 'bg-white text-blue-600 shadow-2xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <Boxes className="w-3.5 h-3.5" />
+              <span>GKE Pod Topology</span>
+            </button>
+            <button
+              onClick={() => setViewMode('table')}
+              className={`flex items-center gap-1.5 px-3 py-1 text-xs font-semibold rounded-lg transition-all cursor-pointer ${
+                viewMode === 'table'
+                  ? 'bg-white text-blue-600 shadow-2xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <Table className="w-3.5 h-3.5" />
+              <span>Fleet Table</span>
+            </button>
+          </div>
+
+          <button
+            onClick={onRefresh}
+            className="p-2 rounded-xl bg-white border border-slate-200 text-slate-500 hover:text-slate-800 hover:bg-slate-50 shadow-2xs transition-colors cursor-pointer"
+            title="Refresh Fleet"
+          >
+            <RefreshCw className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      </div>
+
+      {/* View Mode: GKE Pod Topology */}
+      {viewMode === 'topology' ? (
+        <GkePodTopology
+          services={services}
+          onLoadScenario={onLoadScenario}
+          onResetScenarios={onResetScenarios}
+          onNavigateToAgent={onNavigateToAgent}
+          activeScenarioId={activeScenarioId}
+        />
+      ) : (
+        <>
+          {/* Controls Bar */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div className="flex items-center gap-3 w-full sm:w-auto">
           <div className="relative flex-1 sm:w-72">
@@ -275,6 +349,8 @@ export const ServicesPage: React.FC<ServicesPageProps> = ({ services, onRefresh 
             </div>
           </div>
         </div>
+      )}
+        </>
       )}
     </div>
   );
