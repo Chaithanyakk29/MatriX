@@ -6,7 +6,6 @@ import { AuditRepository, IActionRecord } from '../models/records';
 import { broadcastEvent } from '../websocket/server';
 import { executeTool, toolDefinitions } from './tools';
 import { AgentFinalReport, isCloudCostOptimizationTopic, SYSTEM_PROMPT } from './agent';
-import { mailer } from '../services/mailer';
 
 /**
  * LangGraph State Annotation for SRE Autonomous Agent
@@ -36,47 +35,6 @@ async function observeFleetNode(state: SREStateType): Promise<Partial<SREStateTy
 
   const services = simulator.getAllServices();
   broadcastEvent('investigation_started', `LangGraph [ObserveNode]: Monitored ${services.length} active microservices in GKE cluster`, { count: services.length }, runId);
-
-  // Proactively scan cluster fleet for telemetry anomalies and dispatch operator alerts via Nodemailer
-  for (const s of services) {
-    if (s.latency_ms > s.max_latency_ms) {
-      await mailer.sendAnomalyAlert({
-        serviceId: s.service_id,
-        serviceName: s.name,
-        type: 'latency_sla_breach',
-        severity: 'CRITICAL',
-        currentValue: `${s.latency_ms}ms`,
-        threshold: `${s.max_latency_ms}ms`,
-        description: `Response latency (${s.latency_ms}ms) breached maximum SLA limit (${s.max_latency_ms}ms) under ${s.requests_per_minute} RPM`,
-        proposedRemediation: `Autonomous scale-up to increase pod replicas from ${s.instances} to absorb transaction surge and recover SLA.`,
-        telemetry: s,
-      });
-    } else if (!s.healthy) {
-      await mailer.sendAnomalyAlert({
-        serviceId: s.service_id,
-        serviceName: s.name,
-        type: 'unhealthy_service',
-        severity: 'CRITICAL',
-        currentValue: 'Degraded',
-        threshold: 'Healthy',
-        description: `Microservice health check failed or pods entered crash loop`,
-        proposedRemediation: `Restart container pods, inspect pod events, and restrict scaling mutations until healthy.`,
-        telemetry: s,
-      });
-    } else if (s.cpu_percent > 85) {
-      await mailer.sendAnomalyAlert({
-        serviceId: s.service_id,
-        serviceName: s.name,
-        type: 'traffic_surge',
-        severity: 'WARNING',
-        currentValue: `${s.cpu_percent}% CPU`,
-        threshold: '80% CPU',
-        description: `Sustained high CPU usage (${s.cpu_percent}%) on ${s.instances} nodes`,
-        proposedRemediation: `Monitor node CPU throttle rates; evaluate horizontal scale-out.`,
-        telemetry: s,
-      });
-    }
-  }
 
   // Extract candidate target service from prompt if mentioned
   const lowerPrompt = state.prompt.toLowerCase();
@@ -437,33 +395,6 @@ async function abortAndRecordNode(state: SREStateType): Promise<Partial<SREState
 
   await AuditRepository.saveAction(record);
 
-  // Dispatch operator alert email on critical safety reject or cloud fault
-  if (isSafetyReject) {
-    await mailer.sendAnomalyAlert({
-      serviceId: proposedAction.service_id,
-      serviceName: s?.name,
-      type: 'safety_gate_blocked',
-      severity: 'WARNING',
-      currentValue: 'Safety Policy Rejection',
-      threshold: '10 Deterministic Hard Rules',
-      description: `Autonomous scaling blocked by Safety Gate: ${safetyResult?.reason}`,
-      proposedRemediation: `Review telemetry freshness and verify that load patterns have stabilized before retrying.`,
-      telemetry: s,
-    });
-  } else if (executionResult?.error === 'capacity_unavailable') {
-    await mailer.sendAnomalyAlert({
-      serviceId: proposedAction.service_id,
-      serviceName: s?.name,
-      type: 'capacity_fault',
-      severity: 'CRITICAL',
-      currentValue: 'capacity_unavailable',
-      threshold: 'Cloud Zone Compute Quota',
-      description: `Simulated cloud provider capacity error encountered in us-central1 during scale mutation`,
-      proposedRemediation: `Autonomous rollback completed. Shift workloads to secondary regional zone.`,
-      telemetry: s,
-    });
-  }
-
   return { error: record.reason };
 }
 
@@ -626,6 +557,7 @@ export async function runLangGraphAgent(
   demoMode: boolean = false
 ): Promise<AgentFinalReport> {
   const runId = `lg-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+  const startTime = Date.now();
 
   const initialState: Partial<SREStateType> = {
     prompt,
@@ -643,17 +575,28 @@ export async function runLangGraphAgent(
 
   const finalState = await sreLangGraph.invoke(initialState as any);
 
-  return (
-    finalState.report || {
-      summary: 'LangGraph workflow completed without report output.',
-      problem: { service: 'Fleet', reason: 'Unspecified' },
-      decision: { action: 'no_action', from_instances: 0, to_instances: 0 },
-      safety: { status: 'passed', checks: [] },
-      execution: { status: 'skipped' },
-      verification: { status: 'not_run' },
-      estimated_savings_per_hour: 0,
-      mode: 'langgraph',
-      runId,
-    }
-  );
+  const report: AgentFinalReport = finalState.report || {
+    summary: 'LangGraph workflow completed without report output.',
+    problem: { service: 'Fleet', reason: 'Unspecified' },
+    decision: { action: 'no_action', from_instances: 0, to_instances: 0 },
+    safety: { status: 'passed', checks: [] },
+    execution: { status: 'skipped' },
+    verification: { status: 'not_run' },
+    estimated_savings_per_hour: 0,
+    mode: 'langgraph',
+    runId,
+  };
+
+  await AuditRepository.saveAgentRun({
+    runId,
+    prompt,
+    mode: 'deterministic',
+    status: 'completed',
+    toolsCalled: [],
+    finalResponse: report,
+    durationMs: Date.now() - startTime,
+    timestamp: new Date().toISOString(),
+  });
+
+  return report;
 }

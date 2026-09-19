@@ -12,7 +12,6 @@ import { agentRouter } from './routes/agent';
 import { actionsRouter } from './routes/actions';
 import { scenariosRouter } from './routes/scenarios';
 import { configRouter } from './routes/config';
-import { alertsRouter } from './routes/alerts';
 
 dotenv.config();
 
@@ -46,7 +45,6 @@ app.use('/api', agentRouter);
 app.use('/api', actionsRouter);
 app.use('/api', scenariosRouter);
 app.use('/api', configRouter);
-app.use('/api', alertsRouter);
 
 // 404 Handler
 app.use((req: Request, res: Response) => {
